@@ -17,9 +17,6 @@
                     <span class="font-bold text-white text-xl">SmartStock AI</span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <div class="text-indigo-100 text-sm hidden md:block">
-                        <i class="fas fa-circle text-green-400 text-xs mr-1"></i> System Online
-                    </div>
                     <button onclick="logout()" class="text-white hover:text-red-200 text-sm font-medium transition px-3 py-1 rounded border border-transparent hover:border-red-300">
                         <i class="fas fa-sign-out-alt mr-1"></i> Logout
                     </button>
@@ -33,19 +30,19 @@
             
             <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-purple-500">
                 <h2 class="text-lg font-bold text-gray-700 mb-2"><i class="fas fa-brain text-purple-500 mr-2"></i>Advanced AI Forecasting</h2>
-                <p class="text-sm text-gray-500 mb-4">Predict dynamic stock requirements based on product price and market trends.</p>
+                <p class="text-sm text-gray-500 mb-4">Predict dynamic stock requirements based on recent momentum.</p>
                 
                 <div class="flex space-x-3 mb-2">
-                    <input type="number" id="productIdInput" placeholder="Product ID (e.g., 1)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                    <input type="number" id="daysInput" placeholder="Days in future (e.g., 7)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <input type="number" id="productIdInput" placeholder="Product ID" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <input type="number" id="daysInput" max="30" placeholder="Days (Max 30)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <button onclick="predictDemand()" class="w-1/3 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
                         Predict
                     </button>
                 </div>
                 
-                <div id="aiResult" class="mt-4 hidden bg-purple-50 text-purple-800 p-4 rounded-lg font-medium flex items-center">
-                    <i class="fas fa-chart-line mr-3 text-xl"></i>
-                    <span id="aiResultText"></span>
+                <div id="aiResult" class="mt-4 hidden bg-purple-50 text-purple-800 p-4 rounded-lg font-medium">
+                    <div class="flex items-center"><i class="fas fa-chart-line mr-3 text-xl"></i><span id="aiResultText"></span></div>
+                    <div id="aiNoteText" class="text-xs mt-2 text-purple-600 italic"></div>
                 </div>
             </div>
 
@@ -62,7 +59,6 @@
                 <button onclick="addProduct()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
                     Save to Database
                 </button>
-                <p id="dbResult" class="text-sm text-green-600 mt-2 font-medium text-center"></p>
             </div>
         </div>
 
@@ -76,7 +72,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name (Click for Sales)</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Level</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
@@ -107,6 +103,7 @@
             const days = document.getElementById("daysInput").value;
             
             if (!productId || !days) return alert("Please enter both an ID and days.");
+            if (days > 30) return alert("You can only predict up to 30 days in the future.");
             
             try {
                 const response = await fetch(`${API_URL}/predict-demand/${productId}/${days}`);
@@ -114,11 +111,9 @@
                 
                 if (data.error) return alert(data.error);
 
-                const resultBox = document.getElementById("aiResult");
-                const resultText = document.getElementById("aiResultText");
-                
-                resultBox.classList.remove("hidden");
-                resultText.innerHTML = `Projected Demand for <b>${data.product_name}</b> in ${days} days: <span class="text-xl font-bold ml-1 text-purple-700">${data.predicted_sales_volume} units</span>`;
+                document.getElementById("aiResult").classList.remove("hidden");
+                document.getElementById("aiResultText").innerHTML = `Demand for <b>${data.product_name}</b> in ${days} days: <span class="text-xl font-bold ml-1 text-purple-700">${data.predicted_sales_volume} units</span>`;
+                document.getElementById("aiNoteText").innerText = data.note;
             } catch (error) {
                 alert("Error connecting to AI Engine.");
             }
@@ -136,6 +131,10 @@
                 return alert("Please fill in all fields correctly.");
             }
 
+            if (productData.stock_level < 100) {
+                return alert("Error: New inventory items must have a minimum starting stock of 100 units.");
+            }
+
             try {
                 const response = await fetch(`${API_URL}/products/`, {
                     method: "POST",
@@ -144,34 +143,96 @@
                 });
                 
                 const data = await response.json();
-                document.getElementById("dbResult").innerText = "✔ " + data.message;
+                
+                if (data.success === false) {
+                    return alert(data.message);
+                }
                 
                 document.getElementById("pName").value = '';
                 document.getElementById("pCategory").value = '';
                 document.getElementById("pStock").value = '';
                 document.getElementById("pPrice").value = '';
                 fetchProducts(); 
-                
-                setTimeout(() => document.getElementById("dbResult").innerText = "", 3000);
             } catch (error) {
                 alert("Error saving to database.");
             }
         }
 
+        async function editProduct(id) {
+            const newStock = prompt(`Enter NEW Stock Level for Product #${id}:`);
+            
+            if (newStock && !isNaN(newStock)) {
+                const response = await fetch(`${API_URL}/products/`);
+                const products = await response.json();
+                const item = products.find(p => p.id === id);
+                
+                if (item) {
+                    item.stock_level = parseInt(newStock);
+                    await fetch(`${API_URL}/products/${id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(item)
+                    });
+                    fetchProducts(); 
+                }
+            }
+        }
+
         async function deleteProduct(id) {
             if (!confirm(`Are you sure you want to completely delete Product #${id}?`)) return; 
-
             try {
                 const response = await fetch(`${API_URL}/products/${id}`, { method: "DELETE" });
                 const data = await response.json();
-                
-                if (data.success) {
-                    fetchProducts(); 
-                } else {
-                    alert(data.message);
-                }
+                if (data.success) fetchProducts(); 
+                else alert(data.message);
             } catch (error) {
                 alert("Error deleting product.");
+            }
+        }
+
+        async function viewSales(id, name) {
+            try {
+                const response = await fetch(`${API_URL}/sales/${id}`);
+                const data = await response.json();
+                if (data.error) return alert(data.error);
+                
+                const last3Days = data.sales_data.slice(-3);
+                let message = `--- Sales Data for ${name} ---\n\nLast 3 Days:\n`;
+                last3Days.forEach(day => {
+                    message += `${day.date}: ${day.units_sold} units\n`;
+                });
+                alert(message + "\n(Check console for full 30-day history)");
+                console.log(`Full 30 Day History for ${name}:`, data.sales_data);
+            } catch (error) {
+                alert("Could not load sales data.");
+            }
+        }
+
+        async function exportToExcel(id, name) {
+            try {
+                const response = await fetch(`${API_URL}/sales/${id}`);
+                const data = await response.json();
+                
+                if (data.error) return alert(data.error);
+
+                let csvContent = "Date,Units Sold\n";
+                
+                data.sales_data.forEach(day => {
+                    csvContent += `${day.date},${day.units_sold}\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `${name.replace(/\s+/g, '_')}_Sales_Data.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+            } catch (error) {
+                alert("Error exporting data to Excel.");
             }
         }
 
@@ -184,16 +245,22 @@
                 tableBody.innerHTML = ""; 
                 
                 products.forEach(product => {
-                    const stockClass = product.stock_level < 20 ? "text-red-600 font-bold" : "text-gray-900";
+                    const stockClass = product.stock_level < 100 ? "text-red-600 font-bold" : "text-gray-900";
                     
                     const row = `
                         <tr class="hover:bg-gray-50 transition duration-150">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${product.id}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${product.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600 underline cursor-pointer hover:text-blue-800" onclick="viewSales(${product.id}, '${product.name}')" title="View Sales Data">${product.name}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${product.category}</span></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">${product.stock_level}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">${product.stock_level} <span class="text-xs text-gray-400">(Min: 100)</span></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹${product.price.toFixed(2)}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                <button onclick="exportToExcel(${product.id}, '${product.name}')" class="text-green-600 hover:text-green-800 transition mr-3" title="Export to Excel">
+                                    <i class="fas fa-file-excel"></i>
+                                </button>
+                                <button onclick="editProduct(${product.id})" class="text-blue-500 hover:text-blue-700 transition mr-3" title="Edit Product">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                                 <button onclick="deleteProduct(${product.id})" class="text-red-500 hover:text-red-700 transition" title="Delete Product">
                                     <i class="fas fa-trash"></i>
                                 </button>
