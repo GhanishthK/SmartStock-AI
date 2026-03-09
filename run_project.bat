@@ -1,21 +1,30 @@
 @echo off
-echo.
-echo [1/4] Creating Virtual Environment...
-python -m venv venv
+echo ====================================================
+echo Starting SmartStock AI Setup...
+echo ====================================================
+
+:: 1. Create Virtual Environment if it doesn't exist
+if not exist venv (
+    echo Creating Virtual Environment...
+    python -m venv venv
+)
+
+:: 2. Activate and Install Dependencies
+echo Installing/Updating Packages...
 call venv\Scripts\activate
+pip install -r requirements.txt --quiet
 
-echo.
-echo [2/4] Installing Libraries...
-pip install -r requirements.txt
-
-echo.
-echo [3/4] Training the AI Brain...
+:: 3. Train the AI Model (Ensures it works on the new system)
+echo Training AI Engine...
 python ai_engine/train_model.py
 
-echo.
-echo [4/4] Starting the SmartStock AI Backend...
-echo --------------------------------------------------
-echo Dashboard will be available at: http://127.0.0.1:8000/docs
-echo --------------------------------------------------
+:: 4. Launch the Frontend Dashboard in the Browser
+echo Opening Dashboard...
+start "" "frontend/login.html"
+
+:: 5. Start the Backend API Server
+echo Starting FastAPI Server...
+echo ----------------------------------------------------
+echo SYSTEM IS LIVE. DO NOT CLOSE THIS WINDOW.
+echo ----------------------------------------------------
 uvicorn main:app --reload
-pause
