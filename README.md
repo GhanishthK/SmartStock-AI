@@ -10,7 +10,7 @@
 
 ## 📦 One-Click Setup (Windows)
 1. **Clone the repo:**
-   `git clone https://github.com/YOUR_USERNAME/SmartStock-AI.git`
+   `git clone https://github.com/GhanishthK/SmartStock-AI.git`
 2. **Run the Project:**
    Double-click `run_project.bat`. This script automates environment setup and AI model training.
 
