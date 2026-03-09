@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - SmartStock AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 h-screen flex items-center justify-center">
+
+    <div class="bg-white p-8 rounded-xl shadow-lg max-w-sm w-full border-t-4 border-indigo-600">
+        <div class="text-center mb-6">
+            <i class="fas fa-cubes text-indigo-600 text-4xl mb-2"></i>
+            <h1 class="text-2xl font-bold text-gray-800">SmartStock AI</h1>
+            <p class="text-gray-500 text-sm">Admin Portal Login</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Username</label>
+                <input type="text" id="username" class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter admin username">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="password" class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter password">
+            </div>
+            
+            <button onclick="attemptLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                Sign In
+            </button>
+            <p id="errorMsg" class="text-red-500 text-sm text-center mt-2 font-medium"></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+
+        async function attemptLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/login/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Save a "key" in the browser to remember we are logged in
+                    localStorage.setItem("isLoggedIn", "true");
+                    window.location.href = "index.html"; // Send to dashboard
+                } else {
+                    document.getElementById('errorMsg').innerText = data.message;
+                }
+            } catch (error) {
+                document.getElementById('errorMsg').innerText = "Server offline. Cannot connect.";
+            }
+        }
+    </script>
+</body>
+</html>

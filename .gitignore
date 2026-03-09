@@ -1,0 +1,16 @@
+# Python virtual environment
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Local database (we want users to start fresh)
+inventory.db
+
+# Environment variables/secrets
+.env
+
+# System-specific files
+.vscode/
+.DS_Store

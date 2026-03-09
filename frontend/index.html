@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stock Dashboard - SmartStock AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans" onload="fetchProducts()">
+
+    <nav class="bg-indigo-600 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-cubes text-white text-2xl mr-3"></i>
+                    <span class="font-bold text-white text-xl">SmartStock AI</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-indigo-100 text-sm hidden md:block">
+                        <i class="fas fa-circle text-green-400 text-xs mr-1"></i> System Online
+                    </div>
+                    <button onclick="logout()" class="text-white hover:text-red-200 text-sm font-medium transition px-3 py-1 rounded border border-transparent hover:border-red-300">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-purple-500">
+                <h2 class="text-lg font-bold text-gray-700 mb-2"><i class="fas fa-brain text-purple-500 mr-2"></i>Advanced AI Forecasting</h2>
+                <p class="text-sm text-gray-500 mb-4">Predict dynamic stock requirements based on product price and market trends.</p>
+                
+                <div class="flex space-x-3 mb-2">
+                    <input type="number" id="productIdInput" placeholder="Product ID (e.g., 1)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <input type="number" id="daysInput" placeholder="Days in future (e.g., 7)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <button onclick="predictDemand()" class="w-1/3 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                        Predict
+                    </button>
+                </div>
+                
+                <div id="aiResult" class="mt-4 hidden bg-purple-50 text-purple-800 p-4 rounded-lg font-medium flex items-center">
+                    <i class="fas fa-chart-line mr-3 text-xl"></i>
+                    <span id="aiResultText"></span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-blue-500">
+                <h2 class="text-lg font-bold text-gray-700 mb-4"><i class="fas fa-plus-circle text-blue-500 mr-2"></i>Add New Inventory</h2>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <input type="text" id="pName" placeholder="Product Name" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="pCategory" placeholder="Category" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="number" id="pStock" placeholder="Current Stock" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="number" step="0.01" id="pPrice" placeholder="Price (₹)" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <button onclick="addProduct()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    Save to Database
+                </button>
+                <p id="dbResult" class="text-sm text-green-600 mt-2 font-medium text-center"></p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-gray-700"><i class="fas fa-boxes text-gray-500 mr-2"></i>Current Inventory</h2>
+                <button onclick="fetchProducts()" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Level</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (localStorage.getItem("isLoggedIn") !== "true") {
+            window.location.href = "login.html";
+        }
+
+        const API_URL = "http://127.0.0.1:8000";
+
+        function logout() {
+            localStorage.removeItem("isLoggedIn");
+            window.location.href = "login.html";
+        }
+
+        async function predictDemand() {
+            const productId = document.getElementById("productIdInput").value;
+            const days = document.getElementById("daysInput").value;
+            
+            if (!productId || !days) return alert("Please enter both an ID and days.");
+            
+            try {
+                const response = await fetch(`${API_URL}/predict-demand/${productId}/${days}`);
+                const data = await response.json();
+                
+                if (data.error) return alert(data.error);
+
+                const resultBox = document.getElementById("aiResult");
+                const resultText = document.getElementById("aiResultText");
+                
+                resultBox.classList.remove("hidden");
+                resultText.innerHTML = `Projected Demand for <b>${data.product_name}</b> in ${days} days: <span class="text-xl font-bold ml-1 text-purple-700">${data.predicted_sales_volume} units</span>`;
+            } catch (error) {
+                alert("Error connecting to AI Engine.");
+            }
+        }
+
+        async function addProduct() {
+            const productData = {
+                name: document.getElementById("pName").value,
+                category: document.getElementById("pCategory").value,
+                stock_level: parseInt(document.getElementById("pStock").value),
+                price: parseFloat(document.getElementById("pPrice").value)
+            };
+
+            if (!productData.name || !productData.category || isNaN(productData.stock_level) || isNaN(productData.price)) {
+                return alert("Please fill in all fields correctly.");
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/products/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(productData)
+                });
+                
+                const data = await response.json();
+                document.getElementById("dbResult").innerText = "✔ " + data.message;
+                
+                document.getElementById("pName").value = '';
+                document.getElementById("pCategory").value = '';
+                document.getElementById("pStock").value = '';
+                document.getElementById("pPrice").value = '';
+                fetchProducts(); 
+                
+                setTimeout(() => document.getElementById("dbResult").innerText = "", 3000);
+            } catch (error) {
+                alert("Error saving to database.");
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm(`Are you sure you want to completely delete Product #${id}?`)) return; 
+
+            try {
+                const response = await fetch(`${API_URL}/products/${id}`, { method: "DELETE" });
+                const data = await response.json();
+                
+                if (data.success) {
+                    fetchProducts(); 
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert("Error deleting product.");
+            }
+        }
+
+        async function fetchProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products/`);
+                const products = await response.json();
+                
+                const tableBody = document.getElementById("inventoryTableBody");
+                tableBody.innerHTML = ""; 
+                
+                products.forEach(product => {
+                    const stockClass = product.stock_level < 20 ? "text-red-600 font-bold" : "text-gray-900";
+                    
+                    const row = `
+                        <tr class="hover:bg-gray-50 transition duration-150">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${product.id}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${product.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${product.category}</span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">${product.stock_level}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹${product.price.toFixed(2)}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                <button onclick="deleteProduct(${product.id})" class="text-red-500 hover:text-red-700 transition" title="Delete Product">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.log("Waiting for backend...");
+            }
+        }
+    </script>
+</body>
+</html>
