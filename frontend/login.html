@@ -3,61 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - SmartStock AI</title>
+    <title>SmartStock AI - Access</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-gray-100 h-screen flex items-center justify-center">
+<body class="bg-gray-100 flex items-center justify-center h-screen">
 
-    <div class="bg-white p-8 rounded-xl shadow-lg max-w-sm w-full border-t-4 border-indigo-600">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-96 border-t-4 border-indigo-600">
         <div class="text-center mb-6">
             <i class="fas fa-cubes text-indigo-600 text-4xl mb-2"></i>
-            <h1 class="text-2xl font-bold text-gray-800">SmartStock AI</h1>
-            <p class="text-gray-500 text-sm">Admin Portal Login</p>
+            <h2 class="text-2xl font-bold text-gray-800" id="formTitle">System Login</h2>
+            <p class="text-sm text-gray-500" id="formSubtitle">Enter credentials to access dashboard.</p>
         </div>
 
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Username</label>
-                <input type="text" id="username" class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter admin username">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" id="password" class="mt-1 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter password">
-            </div>
-            
-            <button onclick="attemptLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-                Sign In
+        <input type="text" id="username" placeholder="Username" class="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <input type="password" id="password" placeholder="Password" class="w-full border border-gray-300 rounded-lg px-4 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        
+        <button id="actionBtn" onclick="handleAuth('login')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+            Sign In
+        </button>
+
+        <div class="mt-4 text-center">
+            <button onclick="toggleMode()" id="toggleBtn" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                Need an account? Request access.
             </button>
-            <p id="errorMsg" class="text-red-500 text-sm text-center mt-2 font-medium"></p>
         </div>
     </div>
 
     <script>
         const API_URL = "http://127.0.0.1:8000";
+        let isLoginMode = true;
 
-        async function attemptLogin() {
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById("formTitle").innerText = isLoginMode ? "System Login" : "Request Access";
+            document.getElementById("formSubtitle").innerText = isLoginMode ? "Enter credentials to access dashboard." : "Create an account. Requires Admin approval.";
+            document.getElementById("actionBtn").innerText = isLoginMode ? "Sign In" : "Sign Up";
+            document.getElementById("actionBtn").setAttribute("onclick", isLoginMode ? "handleAuth('login')" : "handleAuth('signup')");
+            document.getElementById("toggleBtn").innerText = isLoginMode ? "Need an account? Request access." : "Already have an account? Sign in.";
+        }
+
+        async function handleAuth(action) {
+            const user = document.getElementById("username").value;
+            const pass = document.getElementById("password").value;
+
+            if (!user || !pass) return alert("Please fill all fields.");
 
             try {
-                const response = await fetch(`${API_URL}/login/`, {
+                const response = await fetch(`${API_URL}/${action}/`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username: user, password: pass })
                 });
                 
                 const data = await response.json();
-                
-                if (data.success) {
-                    // Save a "key" in the browser to remember we are logged in
+                alert(data.message);
+
+                if (data.success && action === 'login') {
                     localStorage.setItem("isLoggedIn", "true");
-                    window.location.href = "index.html"; // Send to dashboard
-                } else {
-                    document.getElementById('errorMsg').innerText = data.message;
+                    localStorage.setItem("role", data.role); // Save role!
+                    localStorage.setItem("username", user);
+                    window.location.href = "index.html";
                 }
             } catch (error) {
-                document.getElementById('errorMsg').innerText = "Server offline. Cannot connect.";
+                alert("Server connection failed.");
             }
         }
     </script>

@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import database
@@ -8,11 +9,12 @@ import numpy as np
 import os
 import hashlib
 import random
-import csv
+import pandas as pd
 import calendar
+import shutil
 from datetime import datetime, timedelta
 
-# 1. Initialize Database
+# 1. Initialize Database (will auto-create the new Staff table)
 database.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="SmartStock AI API")
@@ -46,6 +48,25 @@ def get_db():
     finally:
         db.close()
 
+# --- AUTO-CREATE ADMIN ---
+def create_default_admin():
+    db = database.SessionLocal()
+    try:
+        admin = db.query(database.Admin).first()
+        if not admin:
+            print("⚙️ No admin found. Creating default admin account...")
+            default_admin = database.Admin(
+                username="admin", 
+                password_hash=get_password_hash("admin123")
+            )
+            db.add(default_admin)
+            db.commit()
+            print("✅ Default admin created! Username: admin | Password: admin123")
+    finally:
+        db.close()
+
+create_default_admin()
+
 # --- PYDANTIC SCHEMAS ---
 class ProductCreate(BaseModel):
     name: str
@@ -53,23 +74,28 @@ class ProductCreate(BaseModel):
     stock_level: int
     price: float
 
-class LoginRequest(BaseModel):
+class AuthRequest(BaseModel):
     username: str
     password: str
 
-# --- CSV HELPER FUNCTION ---
+# --- EXCEL (.XLSX) HELPER FUNCTION ---
 def get_or_create_sales_data(product):
-    filename = f"sales_data_{product.id}.csv"
+    filename = f"sales_data_{product.id}.xlsx"
     sales_history = []
     
-    # Check if the file already exists (reads your manual edits)
+    today = datetime.now()
+    first_of_this_month = today.replace(day=1)
+    last_day_prev_month = first_of_this_month - timedelta(days=1)
+    prev_month = last_day_prev_month.month
+    prev_year = last_day_prev_month.year
+    num_days_in_month = last_day_prev_month.day
+
     if os.path.exists(filename):
-        with open(filename, mode='r') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                sales_history.append({"date": row["Date"], "units_sold": int(row["Units Sold"])})
+        df = pd.read_excel(filename)
+        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d') 
+        for _, row in df.iterrows():
+            sales_history.append({"date": row["Date"], "units_sold": int(row["Units Sold"])})
     else:
-        # Generate baseline data once, then save it to the file
         random.seed(product.id)
         if product.price < 500:
             min_sales, max_sales = 15, 40
@@ -78,34 +104,71 @@ def get_or_create_sales_data(product):
         else:
             min_sales, max_sales = 0, 4
 
-        today = datetime.now()
-        for i in range(30):
-            date_str = (today - timedelta(days=29-i)).strftime("%Y-%m-%d")
+        for i in range(1, num_days_in_month + 1):
+            date_str = f"{prev_year}-{prev_month:02d}-{i:02d}"
             units = random.randint(min_sales, max_sales)
             sales_history.append({"date": date_str, "units_sold": units})
-        random.seed() # Reset
+        random.seed()
         
-        # Create the physical file
-        with open(filename, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Date", "Units Sold"])
-            for item in sales_history:
-                writer.writerow([item["date"], item["units_sold"]])
+        df = pd.DataFrame([{"Date": item["date"], "Units Sold": item["units_sold"]} for item in sales_history])
+        df.to_excel(filename, index=False)
                 
     return sales_history
 
-# --- API ENDPOINTS ---
+# --- AUTHENTICATION & APPROVAL ENDPOINTS ---
+
+@app.post("/signup/")
+def signup(req: AuthRequest, db: Session = Depends(get_db)):
+    # Check if username already exists anywhere
+    if db.query(database.Admin).filter(database.Admin.username == req.username).first() or \
+       db.query(database.Staff).filter(database.Staff.username == req.username).first():
+        return {"success": False, "message": "Username already exists!"}
+    
+    new_staff = database.Staff(
+        username=req.username,
+        password_hash=get_password_hash(req.password),
+        is_approved=False
+    )
+    db.add(new_staff)
+    db.commit()
+    return {"success": True, "message": "Account created! Please wait for Admin approval."}
 
 @app.post("/login/")
-def login(req: LoginRequest, db: Session = Depends(get_db)):
+def login(req: AuthRequest, db: Session = Depends(get_db)):
+    hashed_pw = get_password_hash(req.password)
+    
+    # 1. Try logging in as Admin
     admin = db.query(database.Admin).filter(database.Admin.username == req.username).first()
-    if not admin or admin.password_hash != get_password_hash(req.password):
-        return {"success": False, "message": "Incorrect username or password."}
-    return {"success": True, "message": "Login successful!"}
+    if admin and admin.password_hash == hashed_pw:
+        return {"success": True, "message": "Admin Login successful!", "role": "admin"}
+    
+    # 2. Try logging in as Staff
+    staff = db.query(database.Staff).filter(database.Staff.username == req.username).first()
+    if staff and staff.password_hash == hashed_pw:
+        if not staff.is_approved:
+            return {"success": False, "message": "Your account is pending admin approval."}
+        return {"success": True, "message": "Login successful!", "role": "staff"}
+        
+    return {"success": False, "message": "Incorrect username or password."}
+
+@app.get("/pending-staff/")
+def get_pending_staff(db: Session = Depends(get_db)):
+    staff = db.query(database.Staff).filter(database.Staff.is_approved == False).all()
+    return [{"id": s.id, "username": s.username} for s in staff]
+
+@app.put("/approve-staff/{staff_id}")
+def approve_staff(staff_id: int, db: Session = Depends(get_db)):
+    staff = db.query(database.Staff).filter(database.Staff.id == staff_id).first()
+    if staff:
+        staff.is_approved = True
+        db.commit()
+        return {"success": True, "message": f"User {staff.username} approved!"}
+    return {"success": False, "message": "Staff not found."}
+
+# --- PRODUCT & AI ENDPOINTS ---
 
 @app.post("/products/")
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
-    # Strict Backend Validation for Minimum Stock
     if product.stock_level < 100:
         return {"success": False, "message": "Initial stock level must be at least 100 units."}
         
@@ -140,8 +203,7 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     db.delete(product)
     db.commit()
     
-    # Optional clean-up: remove the CSV file when the product is deleted
-    filename = f"sales_data_{product_id}.csv"
+    filename = f"sales_data_{product_id}.xlsx"
     if os.path.exists(filename):
         os.remove(filename)
         
@@ -156,6 +218,37 @@ def get_sales_data(product_id: int, db: Session = Depends(get_db)):
     sales_history = get_or_create_sales_data(product)
     return {"product_name": product.name, "sales_data": sales_history}
 
+@app.get("/export-excel/{product_id}")
+def export_excel(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not product:
+        return {"error": "Product not found."}
+    
+    get_or_create_sales_data(product)
+    filename = f"sales_data_{product_id}.xlsx"
+    clean_name = product.name.replace(" ", "_")
+    
+    return FileResponse(
+        path=filename, 
+        filename=f"{clean_name}_Sales_Data.xlsx", 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+@app.post("/upload-excel/{product_id}")
+async def upload_excel_data(product_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    product = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not product:
+        return {"error": "Product not found."}
+    
+    if not file.filename.endswith('.xlsx'):
+        return {"error": "Invalid file format. Please upload the .xlsx file."}
+        
+    filename = f"sales_data_{product_id}.xlsx"
+    with open(filename, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    return {"success": True, "message": "Data successfully updated! The AI is now using your new numbers."}
+
 @app.get("/predict-demand/{product_id}/{days_in_future}")
 def predict_future_demand(product_id: int, days_in_future: int, db: Session = Depends(get_db)):
     if days_in_future > 30:
@@ -166,10 +259,19 @@ def predict_future_demand(product_id: int, days_in_future: int, db: Session = De
         return {"error": "Product not found."}
     
     sales_history = get_or_create_sales_data(product)
+    if not sales_history:
+        return {"error": "No sales data found."}
+
+    sorted_sales = sorted(sales_history, key=lambda x: x["date"])
+    recent_sales_data = sorted_sales[-3:]
     
-    # Grab the exact last 3 entries from the file
-    recent_sales = [item["units_sold"] for item in sales_history[-3:]] 
-    last_3_days_avg = sum(recent_sales) / 3 if recent_sales else 0
+    recent_sales = [item["units_sold"] for item in recent_sales_data]
+    last_3_days_avg = sum(recent_sales) / len(recent_sales)
+    
+    last_date_obj = datetime.strptime(recent_sales_data[-1]["date"], "%Y-%m-%d")
+    month_name = last_date_obj.strftime("%B")
+    date_list = [str(datetime.strptime(item["date"], "%Y-%m-%d").day) for item in recent_sales_data]
+    date_str_formatted = ", ".join(date_list)
     
     if not ai_model:
         final_prediction = last_3_days_avg * days_in_future
@@ -184,5 +286,5 @@ def predict_future_demand(product_id: int, days_in_future: int, db: Session = De
         "product_name": product.name,
         "days_in_future": days_in_future,
         "predicted_sales_volume": max(0, int(final_prediction)),
-        "note": f"Based on the last 3 days of your static CSV file: {last_3_days_avg:.1f} units/day."
+        "note": f"Based on the latest data found for {month_name} ({date_str_formatted}): {last_3_days_avg:.1f} units/day."
     }

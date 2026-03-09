@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans" onload="fetchProducts()">
+<body class="bg-gray-50 text-gray-800 font-sans">
 
     <nav class="bg-indigo-600 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,6 +17,7 @@
                     <span class="font-bold text-white text-xl">SmartStock AI</span>
                 </div>
                 <div class="flex items-center space-x-4">
+                    <span id="userRoleBadge" class="hidden px-2 py-1 text-xs font-bold rounded-full bg-indigo-800 text-indigo-100 uppercase tracking-wide mr-2"></span>
                     <button onclick="logout()" class="text-white hover:text-red-200 text-sm font-medium transition px-3 py-1 rounded border border-transparent hover:border-red-300">
                         <i class="fas fa-sign-out-alt mr-1"></i> Logout
                     </button>
@@ -62,11 +63,21 @@
             </div>
         </div>
 
+        <div id="adminPanel" class="bg-white rounded-xl shadow-md p-6 border-t-4 border-red-500 mb-8 hidden">
+            <h2 class="text-lg font-bold text-gray-700 mb-4"><i class="fas fa-shield-alt text-red-500 mr-2"></i>Admin Dashboard: Pending User Approvals</h2>
+            <div id="pendingUsersList" class="space-y-3">
+                <p class="text-sm text-gray-500">Loading...</p>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                 <h2 class="text-lg font-bold text-gray-700"><i class="fas fa-boxes text-gray-500 mr-2"></i>Current Inventory</h2>
                 <button onclick="fetchProducts()" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
             </div>
+            
+            <input type="file" id="fileUpload" class="hidden" accept=".xlsx" onchange="handleFileUpload()">
+            
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -87,15 +98,78 @@
     </div>
 
     <script>
+        // Security Check
         if (localStorage.getItem("isLoggedIn") !== "true") {
             window.location.href = "login.html";
         }
 
         const API_URL = "http://127.0.0.1:8000";
 
+        // Setup permissions and load data on page load
+        window.onload = () => {
+            fetchProducts();
+            checkAdminPermissions();
+            
+            // Display User Role in Navbar
+            const role = localStorage.getItem("role");
+            if (role) {
+                const badge = document.getElementById("userRoleBadge");
+                badge.innerText = role;
+                badge.classList.remove("hidden");
+            }
+        };
+
         function logout() {
             localStorage.removeItem("isLoggedIn");
+            localStorage.removeItem("role");
+            localStorage.removeItem("username");
             window.location.href = "login.html";
+        }
+
+        function checkAdminPermissions() {
+            const role = localStorage.getItem("role");
+            if (role === "admin") {
+                document.getElementById("adminPanel").classList.remove("hidden");
+                fetchPendingUsers();
+            }
+        }
+
+        async function fetchPendingUsers() {
+            try {
+                const response = await fetch(`${API_URL}/pending-staff/`);
+                const users = await response.json();
+                
+                const list = document.getElementById("pendingUsersList");
+                if (users.length === 0) {
+                    list.innerHTML = `<p class="text-sm text-gray-500">No pending account requests.</p>`;
+                    return;
+                }
+
+                list.innerHTML = "";
+                users.forEach(user => {
+                    list.innerHTML += `
+                        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <span class="font-medium text-gray-700"><i class="fas fa-user-clock mr-2 text-gray-400"></i>${user.username}</span>
+                            <button onclick="approveUser(${user.id})" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded transition">
+                                Approve Access
+                            </button>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                console.error("Failed to load pending users.");
+            }
+        }
+
+        async function approveUser(id) {
+            try {
+                const response = await fetch(`${API_URL}/approve-staff/${id}`, { method: "PUT" });
+                const data = await response.json();
+                alert(data.message);
+                fetchPendingUsers(); 
+            } catch (error) {
+                alert("Approval failed.");
+            }
         }
 
         async function predictDemand() {
@@ -201,39 +275,49 @@
                 last3Days.forEach(day => {
                     message += `${day.date}: ${day.units_sold} units\n`;
                 });
-                alert(message + "\n(Check console for full 30-day history)");
-                console.log(`Full 30 Day History for ${name}:`, data.sales_data);
+                alert(message + "\n(Check console for full historical data)");
+                console.log(`Full History for ${name}:`, data.sales_data);
             } catch (error) {
                 alert("Could not load sales data.");
             }
         }
 
-        async function exportToExcel(id, name) {
+        function exportToExcel(id) {
+            window.location.href = `${API_URL}/export-excel/${id}`;
+        }
+
+        let currentUploadId = null;
+
+        function triggerUpload(id) {
+            currentUploadId = id;
+            document.getElementById('fileUpload').click();
+        }
+
+        async function handleFileUpload() {
+            const fileInput = document.getElementById('fileUpload');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
             try {
-                const response = await fetch(`${API_URL}/sales/${id}`);
-                const data = await response.json();
-                
-                if (data.error) return alert(data.error);
-
-                let csvContent = "Date,Units Sold\n";
-                
-                data.sales_data.forEach(day => {
-                    csvContent += `${day.date},${day.units_sold}\n`;
+                const response = await fetch(`${API_URL}/upload-excel/${currentUploadId}`, {
+                    method: "POST",
+                    body: formData
                 });
-
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", `${name.replace(/\s+/g, '_')}_Sales_Data.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
                 
+                const data = await response.json();
+                if (data.success) {
+                    alert(data.message);
+                } else {
+                    alert(data.error);
+                }
             } catch (error) {
-                alert("Error exporting data to Excel.");
+                alert("Upload failed. Ensure the server is running.");
             }
+            
+            fileInput.value = ""; 
         }
 
         async function fetchProducts() {
@@ -255,8 +339,11 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">${product.stock_level} <span class="text-xs text-gray-400">(Min: 100)</span></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹${product.price.toFixed(2)}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                <button onclick="exportToExcel(${product.id}, '${product.name}')" class="text-green-600 hover:text-green-800 transition mr-3" title="Export to Excel">
-                                    <i class="fas fa-file-excel"></i>
+                                <button onclick="exportToExcel(${product.id})" class="text-green-600 hover:text-green-800 transition mr-3" title="Download Excel">
+                                    <i class="fas fa-file-download"></i>
+                                </button>
+                                <button onclick="triggerUpload(${product.id})" class="text-orange-500 hover:text-orange-700 transition mr-3" title="Upload Edited Excel">
+                                    <i class="fas fa-file-upload"></i>
                                 </button>
                                 <button onclick="editProduct(${product.id})" class="text-blue-500 hover:text-blue-700 transition mr-3" title="Edit Product">
                                     <i class="fas fa-edit"></i>

@@ -3,3 +3,6 @@ uvicorn
 sqlalchemy
 scikit-learn
 numpy
+pandas
+openpyxl
+python-multipart
