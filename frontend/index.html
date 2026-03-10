@@ -1,365 +1,1328 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Stock Dashboard - SmartStock AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartStock AI — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+/* ── THEME TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:        #f5f5f4;
+  --surface:   #ffffff;
+  --surface-2: #fafaf9;
+  --border:    #e5e5e5;
+  --border-2:  #d4d4d4;
+  --text-1:    #111111;
+  --text-2:    #555555;
+  --text-3:    #aaaaaa;
+  --accent:    #111111;
+  --accent-fg: #ffffff;
+  --green:     #16a34a;
+  --green-bg:  #f0fdf4;
+  --green-bd:  #bbf7d0;
+  --red:       #dc2626;
+  --red-bg:    #fff1f2;
+  --red-bd:    #fecdd3;
+  --amber:     #d97706;
+  --amber-bg:  #fffbeb;
+  --amber-bd:  #fde68a;
+  --blue:      #2563eb;
+  --blue-bg:   #eff6ff;
+  --blue-bd:   #bfdbfe;
+  --sh:        0 1px 2px rgba(0,0,0,.05);
+  --sh-md:     0 2px 8px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+  --sh-lg:     0 4px 20px rgba(0,0,0,.08);
+  --sidebar-w: 220px;
+  --topbar-h:  54px;
+  --radius:    10px;
+}
+[data-theme="dark"] {
+  --bg:        #0f0f0f;
+  --surface:   #1a1a1a;
+  --surface-2: #161616;
+  --border:    #272727;
+  --border-2:  #383838;
+  --text-1:    #f0f0f0;
+  --text-2:    #888888;
+  --text-3:    #444444;
+  --accent:    #f0f0f0;
+  --accent-fg: #111111;
+  --green:     #4ade80;
+  --green-bg:  #0c1f12;
+  --green-bd:  #14532d;
+  --red:       #f87171;
+  --red-bg:    #1f0f0f;
+  --red-bd:    #7f1d1d;
+  --amber:     #fbbf24;
+  --amber-bg:  #1c1507;
+  --amber-bd:  #78350f;
+  --blue:      #60a5fa;
+  --blue-bg:   #0c1629;
+  --blue-bd:   #1e3a5f;
+  --sh:        0 1px 2px rgba(0,0,0,.3);
+  --sh-md:     0 2px 8px rgba(0,0,0,.4);
+  --sh-lg:     0 4px 20px rgba(0,0,0,.5);
+}
+
+/* ── BASE ─────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: 'Geist', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  transition: background .2s, color .2s;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────────── */
+#app { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ──────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0;
+  z-index: 50;
+  transition: background .2s, border-color .2s;
+}
+
+.sidebar-top {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  display: flex; align-items: center; gap: 9px;
+}
+.logo-mark {
+  width: 30px; height: 30px;
+  background: var(--text-1);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Instrument Serif', serif;
+  font-size: 14px; color: var(--bg);
+  flex-shrink: 0; transition: background .2s;
+}
+.logo-text { font-family: 'Instrument Serif', serif; font-size: 16px; color: var(--text-1); }
+
+.nav-section {
+  padding: 14px 0 4px;
+}
+.nav-label {
+  padding: 0 16px 6px;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-3);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 16px; margin: 1px 8px;
+  border-radius: 7px; cursor: pointer;
+  font-size: 13.5px; font-weight: 400;
+  color: var(--text-2);
+  transition: all .15s;
+  border: 1px solid transparent;
+  position: relative;
+}
+.nav-item:hover { background: var(--bg); color: var(--text-1); }
+.nav-item.active { background: var(--bg); color: var(--text-1); font-weight: 500; border-color: var(--border); }
+.nav-item .ni { width: 16px; text-align: center; font-size: 12px; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 600;
+  padding: 1px 5px; border-radius: 999px;
+  display: none; font-family: 'Geist', monospace;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.user-chip {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--bg); cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all .15s;
+}
+.user-chip:hover { border-color: var(--border-2); }
+.user-av {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: var(--text-1); color: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  font-family: 'Geist', sans-serif; flex-shrink: 0;
+  transition: background .2s;
+}
+.user-info { flex:1; min-width:0; }
+.user-name { font-size: 12.5px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role { font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+
+/* ── MAIN ─────────────────────────────────────────────────── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1; display: flex; flex-direction: column; min-height: 100vh;
+}
+
+/* ── TOPBAR ───────────────────────────────────────────────── */
+#topbar {
+  height: var(--topbar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 40;
+  transition: background .2s, border-color .2s;
+}
+.page-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 16px; font-style: italic; color: var(--text-1);
+}
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent; color: var(--text-2);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.icon-btn:hover { background: var(--bg); color: var(--text-1); border-color: var(--border-2); }
+
+.btn-sm {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent; color: var(--text-2);
+  font-family: 'Geist', sans-serif;
+  font-size: 13px; cursor: pointer;
+  transition: all .15s;
+}
+.btn-sm:hover { background: var(--bg); color: var(--text-1); border-color: var(--border-2); }
+.btn-sm.danger:hover { color: var(--red); border-color: var(--red-bd); }
+
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── PAGE CONTENT ─────────────────────────────────────────── */
+.page { padding: 24px; flex: 1; }
+.tab-panel { display: none; animation: up .2s ease; }
+.tab-panel.active { display: block; }
+@keyframes up { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── SECTION LABEL ────────────────────────────────────────── */
+.sec-label {
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 16px;
+}
+
+/* ── CARD ─────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background .2s, border-color .2s;
+}
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title {
+  font-size: 13px; font-weight: 500; color: var(--text-1);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title i { color: var(--text-3); font-size: 12px; }
+.card-body { padding: 18px; }
+
+/* ── STAT CARDS ───────────────────────────────────────────── */
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: border-color .15s, transform .15s, background .2s;
+}
+.stat-card:hover { border-color: var(--border-2); transform: translateY(-1px); }
+.stat-label {
+  font-size: 11px; font-weight: 500; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 10px;
+}
+.stat-value {
+  font-family: 'Instrument Serif', serif;
+  font-size: 32px; font-weight: 400; color: var(--text-1); line-height: 1;
+}
+.stat-sub { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.stat-icon { float: right; font-size: 22px; color: var(--border); margin-top: -4px; }
+
+/* ── INPUTS ───────────────────────────────────────────────── */
+.inp {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: var(--text-1);
+  font-family: 'Geist', sans-serif;
+  font-size: 13.5px; width: 100%; outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.inp:focus { border-color: var(--border-2); box-shadow: 0 0 0 3px rgba(128,128,128,.09); }
+.inp::placeholder { color: var(--text-3); }
+.inp-label {
+  display: block; font-size: 11px; font-weight: 500;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-2); margin-bottom: 6px;
+}
+.field-group { margin-bottom: 14px; }
+
+/* ── BUTTONS ──────────────────────────────────────────────── */
+.btn {
+  border-radius: 7px; padding: 8px 16px;
+  font-family: 'Geist', sans-serif;
+  font-size: 13.5px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+  border: 1px solid transparent;
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-dark {
+  background: var(--text-1); color: var(--bg);
+  transition: opacity .15s, background .2s;
+}
+.btn-dark:hover:not(:disabled) { opacity: .82; }
+.btn-outline {
+  background: transparent; color: var(--text-2);
+  border-color: var(--border);
+}
+.btn-outline:hover:not(:disabled) { background: var(--bg); color: var(--text-1); border-color: var(--border-2); }
+.btn-green {
+  background: var(--green-bg); color: var(--green);
+  border-color: var(--green-bd);
+}
+.btn-green:hover:not(:disabled) { opacity: .8; }
+.btn-red {
+  background: var(--red-bg); color: var(--red);
+  border-color: var(--red-bd);
+}
+.btn-red:hover:not(:disabled) { opacity: .8; }
+
+/* ── TABLE ────────────────────────────────────────────────── */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th {
+  padding: 10px 16px; text-align: left;
+  font-size: 10.5px; font-weight: 500; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+}
+.tbl td {
+  padding: 12px 16px; font-size: 13.5px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tbody tr { transition: background .1s; }
+.tbl tbody tr:hover td { background: var(--surface-2); }
+.tbl tbody tr.low td:first-child { border-left: 2px solid var(--red); }
+
+/* ── BADGES ───────────────────────────────────────────────── */
+.badge {
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.badge-green  { background: var(--green-bg); color: var(--green); }
+.badge-red    { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bd); }
+.badge-amber  { background: var(--amber-bg); color: var(--amber); }
+.badge-blue   { background: var(--blue-bg);  color: var(--blue);  }
+.badge-gray   { background: var(--bg); color: var(--text-2); border: 1px solid var(--border); }
+
+/* ── TABLE ACTION BUTTONS ─────────────────────────────────── */
+.tbl-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text-3); cursor: pointer; font-size: 11.5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.tbl-btn:hover { background: var(--bg); border-color: var(--border); color: var(--text-1); }
+.tbl-btn.r:hover { color: var(--red); border-color: var(--red-bd); background: var(--red-bg); }
+.tbl-btn.g:hover { color: var(--green); border-color: var(--green-bd); background: var(--green-bg); }
+.tbl-btn.a:hover { color: var(--amber); border-color: var(--amber-bd); background: var(--amber-bg); }
+
+/* ── ALERT BANNER ─────────────────────────────────────────── */
+#alertBanner {
+  display: none; margin-bottom: 20px;
+  background: var(--amber-bg); border: 1px solid var(--amber-bd);
+  border-radius: var(--radius); padding: 11px 16px;
+  align-items: flex-start; gap: 10px;
+  font-size: 13px;
+}
+#alertBanner.show { display: flex; animation: up .25s ease; }
+.alert-close {
+  margin-left: auto; flex-shrink: 0;
+  background: none; border: none; cursor: pointer;
+  color: var(--amber); font-size: 13px; padding: 2px;
+}
+
+/* ── MODAL ────────────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.35); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+[data-theme="dark"] .overlay { background: rgba(0,0,0,.6); }
+.overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 26px;
+  width: 420px; max-width: 95vw;
+  box-shadow: var(--sh-lg);
+  transform: scale(.97); transition: transform .18s;
+}
+.overlay.open .modal { transform: scale(1); }
+.modal-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px; font-style: italic; font-weight: 400;
+  color: var(--text-1); margin-bottom: 20px;
+}
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+/* ── TOAST ────────────────────────────────────────────────── */
+#toasts {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+  z-index: 9999; pointer-events: none;
+}
+.toast {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 11px 14px;
+  display: flex; align-items: center; gap: 10px;
+  min-width: 260px; max-width: 320px;
+  box-shadow: var(--sh-lg); font-size: 13px;
+  pointer-events: all; animation: ti .25s cubic-bezier(.16,1,.3,1);
+}
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--blue); }
+.toast.warning { border-left: 3px solid var(--amber); }
+.ti-success { color: var(--green); } .ti-error { color: var(--red); }
+.ti-info    { color: var(--blue); }  .ti-warning{ color: var(--amber); }
+.toast-msg  { flex: 1; color: var(--text-1); }
+.toast-x    { color: var(--text-3); cursor: pointer; font-size: 12px; transition: color .15s; }
+.toast-x:hover { color: var(--text-2); }
+@keyframes ti { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+/* ── AI RESULT ────────────────────────────────────────────── */
+#aiResult {
+  display: none; margin-top: 14px;
+  background: var(--blue-bg); border: 1px solid var(--blue-bd);
+  border-radius: var(--radius); padding: 16px;
+  animation: up .25s ease;
+}
+.ai-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 36px; color: var(--text-1); line-height: 1;
+}
+
+/* ── SEARCH ───────────────────────────────────────────────── */
+.search-wrap { position: relative; }
+.search-wrap i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 11px; pointer-events: none; }
+.search-wrap .inp { padding-left: 30px; }
+
+/* ── MISC ─────────────────────────────────────────────────── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.g5 { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; }
+.mb4{margin-bottom:4px} .mb8{margin-bottom:8px} .mb12{margin-bottom:12px}
+.mb16{margin-bottom:16px} .mb20{margin-bottom:20px} .mb24{margin-bottom:24px}
+.flex{display:flex} .items-c{align-items:center} .jc-sb{justify-content:space-between}
+.gap8{gap:8px} .gap12{gap:12px} .w-full{width:100%}
+.text-muted { color: var(--text-2); }
+.text-dim   { color: var(--text-3); }
+.mono { font-family: 'Geist', monospace; }
+.overflow-x { overflow-x: auto; }
+.spinner {
+  width: 13px; height: 13px;
+  border: 2px solid rgba(128,128,128,.2);
+  border-top-color: var(--text-2);
+  border-radius: 50%; animation: spin .6s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+.empty {
+  padding: 40px; text-align: center;
+  color: var(--text-3); font-size: 13.5px;
+}
+.empty i { font-size: 26px; margin-bottom: 10px; display: block; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans">
 
-    <nav class="bg-indigo-600 shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center">
-                    <i class="fas fa-cubes text-white text-2xl mr-3"></i>
-                    <span class="font-bold text-white text-xl">SmartStock AI</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span id="userRoleBadge" class="hidden px-2 py-1 text-xs font-bold rounded-full bg-indigo-800 text-indigo-100 uppercase tracking-wide mr-2"></span>
-                    <button onclick="logout()" class="text-white hover:text-red-200 text-sm font-medium transition px-3 py-1 rounded border border-transparent hover:border-red-300">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
-                    </button>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body>
+<script>
+  if (localStorage.getItem("isLoggedIn") !== "true") window.location.href = "login.html";
+  // Apply saved theme immediately to prevent flash
+  const t = localStorage.getItem("ss-theme") || "light";
+  document.documentElement.setAttribute("data-theme", t);
+</script>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            
-            <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-purple-500">
-                <h2 class="text-lg font-bold text-gray-700 mb-2"><i class="fas fa-brain text-purple-500 mr-2"></i>Advanced AI Forecasting</h2>
-                <p class="text-sm text-gray-500 mb-4">Predict dynamic stock requirements based on recent momentum.</p>
-                
-                <div class="flex space-x-3 mb-2">
-                    <input type="number" id="productIdInput" placeholder="Product ID" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                    <input type="number" id="daysInput" max="30" placeholder="Days (Max 30)" class="w-1/3 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                    <button onclick="predictDemand()" class="w-1/3 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
-                        Predict
-                    </button>
-                </div>
-                
-                <div id="aiResult" class="mt-4 hidden bg-purple-50 text-purple-800 p-4 rounded-lg font-medium">
-                    <div class="flex items-center"><i class="fas fa-chart-line mr-3 text-xl"></i><span id="aiResultText"></span></div>
-                    <div id="aiNoteText" class="text-xs mt-2 text-purple-600 italic"></div>
-                </div>
-            </div>
+<div id="app">
 
-            <div class="bg-white rounded-xl shadow-md p-6 border-t-4 border-blue-500">
-                <h2 class="text-lg font-bold text-gray-700 mb-4"><i class="fas fa-plus-circle text-blue-500 mr-2"></i>Add New Inventory</h2>
-                
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input type="text" id="pName" placeholder="Product Name" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="text" id="pCategory" placeholder="Category" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="number" id="pStock" placeholder="Current Stock" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="number" step="0.01" id="pPrice" placeholder="Price (₹)" class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                
-                <button onclick="addProduct()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
-                    Save to Database
-                </button>
-            </div>
-        </div>
+<!-- ── SIDEBAR ── -->
+<aside id="sidebar">
+  <div class="sidebar-top">
+    <div class="logo">
+      <div class="logo-mark">S</div>
+      <span class="logo-text">SmartStock AI</span>
+    </div>
+  </div>
 
-        <div id="adminPanel" class="bg-white rounded-xl shadow-md p-6 border-t-4 border-red-500 mb-8 hidden">
-            <h2 class="text-lg font-bold text-gray-700 mb-4"><i class="fas fa-shield-alt text-red-500 mr-2"></i>Admin Dashboard: Pending User Approvals</h2>
-            <div id="pendingUsersList" class="space-y-3">
-                <p class="text-sm text-gray-500">Loading...</p>
-            </div>
-        </div>
+  <div class="nav-section">
+    <div class="nav-label">Menu</div>
+    <div class="nav-item active" id="nav-dashboard" onclick="go('dashboard')">
+      <span class="ni"><i class="fas fa-gauge-high"></i></span> Dashboard
+    </div>
+    <div class="nav-item" id="nav-inventory" onclick="go('inventory')">
+      <span class="ni"><i class="fas fa-boxes-stacked"></i></span> Inventory
+      <span class="nav-badge" id="lowBadge"></span>
+    </div>
+    <div class="nav-item" id="nav-analytics" onclick="go('analytics')">
+      <span class="ni"><i class="fas fa-chart-line"></i></span> Analytics
+    </div>
+    <div class="nav-item" id="nav-forecast" onclick="go('forecast')">
+      <span class="ni"><i class="fas fa-brain"></i></span> AI Forecast
+    </div>
+    <div class="nav-item" id="nav-add" onclick="go('add')">
+      <span class="ni"><i class="fas fa-plus-circle"></i></span> Add Product
+    </div>
+    <div class="nav-item" id="nav-admin" style="display:none" onclick="go('admin')">
+      <span class="ni"><i class="fas fa-shield-halved"></i></span> Admin
+      <span class="nav-badge" id="pendingBadge"></span>
+    </div>
+  </div>
 
-        <div class="bg-white rounded-xl shadow-md overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-700"><i class="fas fa-boxes text-gray-500 mr-2"></i>Current Inventory</h2>
-                <button onclick="fetchProducts()" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
-            </div>
-            
-            <input type="file" id="fileUpload" class="hidden" accept=".xlsx" onchange="handleFileUpload()">
-            
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name (Click for Sales)</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Level</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventoryTableBody" class="bg-white divide-y divide-gray-200">
-                        </tbody>
-                </table>
-            </div>
-        </div>
+  <div class="sidebar-bottom">
+    <div class="user-chip" onclick="logout()" title="Logout">
+      <div class="user-av" id="userAv">?</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">—</div>
+        <div class="user-role" id="userRole">—</div>
+      </div>
+      <i class="fas fa-arrow-right-from-bracket text-dim" style="font-size:11px;flex-shrink:0"></i>
+    </div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<div id="main">
+
+  <!-- Topbar -->
+  <header id="topbar">
+    <span class="page-title" id="pageTitle">Dashboard</span>
+    <div class="topbar-right">
+      <div class="live-dot" title="Server connected"></div>
+      <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" id="themeBtn">
+        <i class="fas fa-moon" id="themeIcon"></i>
+      </button>
+      <button class="btn-sm" onclick="refreshAll()"><i class="fas fa-arrows-rotate"></i> Refresh</button>
+      <button class="btn-sm danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="page">
+
+    <!-- Alert Banner -->
+    <div id="alertBanner">
+      <i class="fas fa-triangle-exclamation" style="color:var(--amber);margin-top:1px;flex-shrink:0"></i>
+      <div>
+        <div style="font-weight:500;color:var(--amber)" class="mb4">Low Stock Alert</div>
+        <div id="alertText" style="color:var(--text-2)"></div>
+      </div>
+      <button class="alert-close" onclick="document.getElementById('alertBanner').classList.remove('show')">
+        <i class="fas fa-xmark"></i>
+      </button>
     </div>
 
-    <script>
-        // Security Check
-        if (localStorage.getItem("isLoggedIn") !== "true") {
-            window.location.href = "login.html";
-        }
+    <!-- ═══ TAB: DASHBOARD ═══ -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="sec-label">Overview</div>
 
-        const API_URL = "http://127.0.0.1:8000";
+      <div class="g5 mb24">
+        <div class="stat-card">
+          <i class="fas fa-boxes stat-icon"></i>
+          <div class="stat-label">Total Products</div>
+          <div class="stat-value" id="sTot">—</div>
+          <div class="stat-sub">in catalog</div>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-triangle-exclamation stat-icon"></i>
+          <div class="stat-label">Low Stock</div>
+          <div class="stat-value" style="color:var(--red)" id="sLow">—</div>
+          <div class="stat-sub">below threshold</div>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-indian-rupee-sign stat-icon"></i>
+          <div class="stat-label">Total Value</div>
+          <div class="stat-value" style="color:var(--green)" id="sVal">—</div>
+          <div class="stat-sub">inventory worth</div>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-tags stat-icon"></i>
+          <div class="stat-label">Categories</div>
+          <div class="stat-value" id="sCat">—</div>
+          <div class="stat-sub">distinct types</div>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-chart-bar stat-icon"></i>
+          <div class="stat-label">Avg Stock</div>
+          <div class="stat-value" id="sAvg">—</div>
+          <div class="stat-sub">units/product</div>
+        </div>
+      </div>
 
-        // Setup permissions and load data on page load
-        window.onload = () => {
-            fetchProducts();
-            checkAdminPermissions();
-            
-            // Display User Role in Navbar
-            const role = localStorage.getItem("role");
-            if (role) {
-                const badge = document.getElementById("userRoleBadge");
-                badge.innerText = role;
-                badge.classList.remove("hidden");
-            }
-        };
+      <div class="g2 mb24">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="fas fa-triangle-exclamation"></i> Low Stock Items</span>
+            <button class="btn btn-outline" onclick="go('inventory')" style="font-size:12px;padding:4px 10px">View all</button>
+          </div>
+          <div id="lowStockList" style="max-height:260px;overflow-y:auto">
+            <div class="empty"><i class="fas fa-check-circle" style="color:var(--green)"></i>All items stocked</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="fas fa-chart-pie"></i> Stock by Category</span>
+          </div>
+          <div class="card-body">
+            <div style="height:220px"><canvas id="catChart"></canvas></div>
+          </div>
+        </div>
+      </div>
 
-        function logout() {
-            localStorage.removeItem("isLoggedIn");
-            localStorage.removeItem("role");
-            localStorage.removeItem("username");
-            window.location.href = "login.html";
-        }
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-clock"></i> Recent Inventory</span>
+          <button class="btn btn-outline" onclick="go('inventory')" style="font-size:12px;padding:4px 10px">Manage →</button>
+        </div>
+        <div class="overflow-x">
+          <table class="tbl">
+            <thead><tr><th>ID</th><th>Product</th><th>Category</th><th>Stock</th><th>Price</th><th>Status</th></tr></thead>
+            <tbody id="dashTbl"><tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-        function checkAdminPermissions() {
-            const role = localStorage.getItem("role");
-            if (role === "admin") {
-                document.getElementById("adminPanel").classList.remove("hidden");
-                fetchPendingUsers();
-            }
-        }
+    <!-- ═══ TAB: INVENTORY ═══ -->
+    <div class="tab-panel" id="tab-inventory">
+      <div class="flex items-c jc-sb mb20">
+        <div class="sec-label" style="margin-bottom:0">All Products</div>
+        <div class="flex items-c gap8">
+          <div class="search-wrap" style="width:200px">
+            <i class="fas fa-search"></i>
+            <input type="text" class="inp" id="searchInp" placeholder="Search…" oninput="filterTable()">
+          </div>
+          <select class="inp" id="catFilter" style="width:150px" onchange="filterTable()">
+            <option value="">All Categories</option>
+          </select>
+          <button class="icon-btn" onclick="fetchProducts()" title="Refresh"><i class="fas fa-arrows-rotate"></i></button>
+        </div>
+      </div>
 
-        async function fetchPendingUsers() {
-            try {
-                const response = await fetch(`${API_URL}/pending-staff/`);
-                const users = await response.json();
-                
-                const list = document.getElementById("pendingUsersList");
-                if (users.length === 0) {
-                    list.innerHTML = `<p class="text-sm text-gray-500">No pending account requests.</p>`;
-                    return;
-                }
+      <input type="file" id="fileUpload" accept=".xlsx" onchange="handleUpload()" style="display:none">
 
-                list.innerHTML = "";
-                users.forEach(user => {
-                    list.innerHTML += `
-                        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
-                            <span class="font-medium text-gray-700"><i class="fas fa-user-clock mr-2 text-gray-400"></i>${user.username}</span>
-                            <button onclick="approveUser(${user.id})" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-3 rounded transition">
-                                Approve Access
-                            </button>
-                        </div>
-                    `;
-                });
-            } catch (error) {
-                console.error("Failed to load pending users.");
-            }
-        }
+      <div class="card">
+        <div class="overflow-x">
+          <table class="tbl">
+            <thead><tr>
+              <th>ID</th><th>Product Name</th><th>Category</th>
+              <th>Stock</th><th>Price</th><th style="text-align:center">Actions</th>
+            </tr></thead>
+            <tbody id="invTbl"><tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-        async function approveUser(id) {
-            try {
-                const response = await fetch(`${API_URL}/approve-staff/${id}`, { method: "PUT" });
-                const data = await response.json();
-                alert(data.message);
-                fetchPendingUsers(); 
-            } catch (error) {
-                alert("Approval failed.");
-            }
-        }
+    <!-- ═══ TAB: ANALYTICS ═══ -->
+    <div class="tab-panel" id="tab-analytics">
+      <div class="sec-label">Analytics</div>
 
-        async function predictDemand() {
-            const productId = document.getElementById("productIdInput").value;
-            const days = document.getElementById("daysInput").value;
-            
-            if (!productId || !days) return alert("Please enter both an ID and days.");
-            if (days > 30) return alert("You can only predict up to 30 days in the future.");
-            
-            try {
-                const response = await fetch(`${API_URL}/predict-demand/${productId}/${days}`);
-                const data = await response.json();
-                
-                if (data.error) return alert(data.error);
+      <div class="g2 mb24" style="grid-template-columns:2fr 1fr">
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-chart-bar"></i> Stock Levels</span></div>
+          <div class="card-body"><div style="height:240px"><canvas id="stockBar"></canvas></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-chart-pie"></i> Categories</span></div>
+          <div class="card-body"><div style="height:240px"><canvas id="catDo"></canvas></div></div>
+        </div>
+      </div>
 
-                document.getElementById("aiResult").classList.remove("hidden");
-                document.getElementById("aiResultText").innerHTML = `Demand for <b>${data.product_name}</b> in ${days} days: <span class="text-xl font-bold ml-1 text-purple-700">${data.predicted_sales_volume} units</span>`;
-                document.getElementById("aiNoteText").innerText = data.note;
-            } catch (error) {
-                alert("Error connecting to AI Engine.");
-            }
-        }
+      <div class="g2">
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-indian-rupee-sign"></i> Value by Category</span></div>
+          <div class="card-body"><div style="height:200px"><canvas id="valChart"></canvas></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-chart-line"></i> Sales History</span></div>
+          <div class="card-body">
+            <div class="flex items-c gap8 mb16">
+              <input type="number" class="inp" id="salesId" placeholder="Product ID" style="width:110px">
+              <button class="btn btn-dark" onclick="loadSalesChart()"><i class="fas fa-chart-line"></i> Load</button>
+            </div>
+            <div style="height:154px"><canvas id="salesLine"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        async function addProduct() {
-            const productData = {
-                name: document.getElementById("pName").value,
-                category: document.getElementById("pCategory").value,
-                stock_level: parseInt(document.getElementById("pStock").value),
-                price: parseFloat(document.getElementById("pPrice").value)
-            };
+    <!-- ═══ TAB: FORECAST ═══ -->
+    <div class="tab-panel" id="tab-forecast">
+      <div class="sec-label">AI Demand Forecasting</div>
 
-            if (!productData.name || !productData.category || isNaN(productData.stock_level) || isNaN(productData.price)) {
-                return alert("Please fill in all fields correctly.");
-            }
+      <div class="g2">
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-brain"></i> Run Prediction</span></div>
+          <div class="card-body">
+            <div class="field-group">
+              <label class="inp-label">Product ID</label>
+              <input type="number" class="inp" id="predId" placeholder="e.g. 1">
+            </div>
+            <div class="field-group">
+              <label class="inp-label">Days to Forecast (max 30)</label>
+              <input type="number" class="inp" id="predDays" placeholder="e.g. 7" max="30">
+            </div>
+            <button class="btn btn-dark w-full" style="justify-content:center" onclick="predict()" id="predBtn">
+              <i class="fas fa-bolt"></i> Run Forecast
+            </button>
 
-            if (productData.stock_level < 100) {
-                return alert("Error: New inventory items must have a minimum starting stock of 100 units.");
-            }
+            <div id="aiResult">
+              <div style="font-size:11px;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Predicted Demand</div>
+              <div class="ai-num mb8" id="aiNum">—</div>
+              <div style="font-weight:500;color:var(--text-1);margin-bottom:4px" id="aiProd"></div>
+              <div style="font-size:12px;color:var(--text-3)" id="aiNote"></div>
+            </div>
+          </div>
+        </div>
 
-            try {
-                const response = await fetch(`${API_URL}/products/`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(productData)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success === false) {
-                    return alert(data.message);
-                }
-                
-                document.getElementById("pName").value = '';
-                document.getElementById("pCategory").value = '';
-                document.getElementById("pStock").value = '';
-                document.getElementById("pPrice").value = '';
-                fetchProducts(); 
-            } catch (error) {
-                alert("Error saving to database.");
-            }
-        }
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-circle-info"></i> Model Architecture</span></div>
+          <div class="card-body">
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:16px;line-height:1.6">
+              Ridge Regression with Fourier features decomposes demand into independent components for accurate forecasting.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px">
+                <div style="font-size:10px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px">Component 1</div>
+                <div style="font-weight:500;font-size:13px;color:var(--text-1);margin-bottom:3px">Trend Line</div>
+                <div style="font-size:12px;color:var(--text-2)">Long-term growth</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px">
+                <div style="font-size:10px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px">Component 2</div>
+                <div style="font-weight:500;font-size:13px;color:var(--text-1);margin-bottom:3px">Seasonality</div>
+                <div style="font-size:12px;color:var(--text-2)">Yearly cycles</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px">
+                <div style="font-size:10px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px">Component 3</div>
+                <div style="font-weight:500;font-size:13px;color:var(--text-1);margin-bottom:3px">Momentum</div>
+                <div style="font-size:12px;color:var(--text-2)">7-day rolling avg</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px">
+                <div style="font-size:10px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px">Component 4</div>
+                <div style="font-weight:500;font-size:13px;color:var(--text-1);margin-bottom:3px">Elasticity</div>
+                <div style="font-size:12px;color:var(--text-2)">Price adjustment</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        async function editProduct(id) {
-            const newStock = prompt(`Enter NEW Stock Level for Product #${id}:`);
-            
-            if (newStock && !isNaN(newStock)) {
-                const response = await fetch(`${API_URL}/products/`);
-                const products = await response.json();
-                const item = products.find(p => p.id === id);
-                
-                if (item) {
-                    item.stock_level = parseInt(newStock);
-                    await fetch(`${API_URL}/products/${id}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(item)
-                    });
-                    fetchProducts(); 
-                }
-            }
-        }
+    <!-- ═══ TAB: ADD ═══ -->
+    <div class="tab-panel" id="tab-add">
+      <div class="sec-label">Add Product</div>
+      <div style="max-width:480px">
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-plus-circle"></i> New Product</span></div>
+          <div class="card-body">
+            <div class="field-group">
+              <label class="inp-label">Product Name</label>
+              <input type="text" class="inp" id="pName" placeholder="e.g. Wireless Headphones">
+            </div>
+            <div class="field-group">
+              <label class="inp-label">Category</label>
+              <input type="text" class="inp" id="pCat" placeholder="e.g. Electronics">
+            </div>
+            <div class="g2" style="margin-bottom:14px">
+              <div>
+                <label class="inp-label">Stock Level</label>
+                <input type="number" class="inp" id="pStock" placeholder="Min. 100">
+              </div>
+              <div>
+                <label class="inp-label">Price (₹)</label>
+                <input type="number" step="0.01" class="inp" id="pPrice" placeholder="0.00">
+              </div>
+            </div>
+            <div style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:7px;padding:9px 12px;font-size:12.5px;color:var(--amber);margin-bottom:16px">
+              <i class="fas fa-info-circle"></i> Minimum starting stock of 100 units required.
+            </div>
+            <button class="btn btn-dark w-full" style="justify-content:center" onclick="addProduct()" id="addBtn">
+              <i class="fas fa-database"></i> Save to Database
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        async function deleteProduct(id) {
-            if (!confirm(`Are you sure you want to completely delete Product #${id}?`)) return; 
-            try {
-                const response = await fetch(`${API_URL}/products/${id}`, { method: "DELETE" });
-                const data = await response.json();
-                if (data.success) fetchProducts(); 
-                else alert(data.message);
-            } catch (error) {
-                alert("Error deleting product.");
-            }
-        }
+    <!-- ═══ TAB: ADMIN ═══ -->
+    <div class="tab-panel" id="tab-admin">
+      <div class="sec-label">Admin Panel</div>
+      <div style="max-width:560px">
+        <div class="card mb20">
+          <div class="card-header">
+            <span class="card-title"><i class="fas fa-user-clock"></i> Pending Approvals</span>
+            <button class="icon-btn" onclick="fetchPending()" title="Refresh"><i class="fas fa-arrows-rotate"></i></button>
+          </div>
+          <div id="pendingList" style="min-height:60px">
+            <div class="empty"><span class="spinner"></span></div>
+          </div>
+        </div>
 
-        async function viewSales(id, name) {
-            try {
-                const response = await fetch(`${API_URL}/sales/${id}`);
-                const data = await response.json();
-                if (data.error) return alert(data.error);
-                
-                const last3Days = data.sales_data.slice(-3);
-                let message = `--- Sales Data for ${name} ---\n\nLast 3 Days:\n`;
-                last3Days.forEach(day => {
-                    message += `${day.date}: ${day.units_sold} units\n`;
-                });
-                alert(message + "\n(Check console for full historical data)");
-                console.log(`Full History for ${name}:`, data.sales_data);
-            } catch (error) {
-                alert("Could not load sales data.");
-            }
-        }
+        <div class="card">
+          <div class="card-header"><span class="card-title"><i class="fas fa-clock-rotate-left"></i> Activity Log</span></div>
+          <div id="activityLog" style="max-height:320px;overflow-y:auto">
+            <div class="empty"><span class="spinner"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        function exportToExcel(id) {
-            window.location.href = `${API_URL}/export-excel/${id}`;
-        }
+  </div><!-- /page -->
+</div><!-- /main -->
+</div><!-- /app -->
 
-        let currentUploadId = null;
+<!-- ── EDIT MODAL ── -->
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <div class="modal-title">Edit Product <span style="font-size:13px;color:var(--text-3);font-style:normal" id="editIdLabel"></span></div>
+    <div class="field-group"><label class="inp-label">Product Name</label><input type="text" class="inp" id="eName"></div>
+    <div class="field-group"><label class="inp-label">Category</label><input type="text" class="inp" id="eCat"></div>
+    <div class="g2" style="margin-bottom:0">
+      <div class="field-group"><label class="inp-label">Stock Level</label><input type="number" class="inp" id="eStock"></div>
+      <div class="field-group"><label class="inp-label">Price (₹)</label><input type="number" step="0.01" class="inp" id="ePrice"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeM('editOverlay')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveEdit()"><i class="fas fa-check"></i> Save</button>
+    </div>
+  </div>
+</div>
 
-        function triggerUpload(id) {
-            currentUploadId = id;
-            document.getElementById('fileUpload').click();
-        }
+<!-- ── SALES MODAL ── -->
+<div class="overlay" id="salesOverlay">
+  <div class="modal" style="width:460px">
+    <div class="modal-title">Sales Data — <span id="salesModalName" style="color:var(--text-2);font-style:normal;font-size:14px"></span></div>
+    <div id="salesModalBody" style="max-height:320px;overflow-y:auto">
+      <div class="empty"><span class="spinner"></span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeM('salesOverlay')">Close</button>
+    </div>
+  </div>
+</div>
 
-        async function handleFileUpload() {
-            const fileInput = document.getElementById('fileUpload');
-            const file = fileInput.files[0];
-            if (!file) return;
+<!-- ── TOASTS ── -->
+<div id="toasts"></div>
 
-            const formData = new FormData();
-            formData.append("file", file);
+<script>
+const API = "http://127.0.0.1:8000";
+let products = [], editId = null, uploadId = null;
 
-            try {
-                const response = await fetch(`${API_URL}/upload-excel/${currentUploadId}`, {
-                    method: "POST",
-                    body: formData
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    alert(data.message);
-                } else {
-                    alert(data.error);
-                }
-            } catch (error) {
-                alert("Upload failed. Ensure the server is running.");
-            }
-            
-            fileInput.value = ""; 
-        }
+// ── THEME ─────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  const icon = document.getElementById("themeIcon");
+  if (icon) icon.className = t === "dark" ? "fas fa-sun" : "fas fa-moon";
+  localStorage.setItem("ss-theme", t);
+  if (window.charts) rebuildCharts();
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+}
+// Apply theme icon on load
+(function() {
+  const t = localStorage.getItem("ss-theme") || "light";
+  const icon = document.getElementById("themeIcon");
+  if (icon) icon.className = t === "dark" ? "fas fa-sun" : "fas fa-moon";
+})();
 
-        async function fetchProducts() {
-            try {
-                const response = await fetch(`${API_URL}/products/`);
-                const products = await response.json();
-                
-                const tableBody = document.getElementById("inventoryTableBody");
-                tableBody.innerHTML = ""; 
-                
-                products.forEach(product => {
-                    const stockClass = product.stock_level < 100 ? "text-red-600 font-bold" : "text-gray-900";
-                    
-                    const row = `
-                        <tr class="hover:bg-gray-50 transition duration-150">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${product.id}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600 underline cursor-pointer hover:text-blue-800" onclick="viewSales(${product.id}, '${product.name}')" title="View Sales Data">${product.name}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${product.category}</span></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">${product.stock_level} <span class="text-xs text-gray-400">(Min: 100)</span></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹${product.price.toFixed(2)}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                <button onclick="exportToExcel(${product.id})" class="text-green-600 hover:text-green-800 transition mr-3" title="Download Excel">
-                                    <i class="fas fa-file-download"></i>
-                                </button>
-                                <button onclick="triggerUpload(${product.id})" class="text-orange-500 hover:text-orange-700 transition mr-3" title="Upload Edited Excel">
-                                    <i class="fas fa-file-upload"></i>
-                                </button>
-                                <button onclick="editProduct(${product.id})" class="text-blue-500 hover:text-blue-700 transition mr-3" title="Edit Product">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button onclick="deleteProduct(${product.id})" class="text-red-500 hover:text-red-700 transition" title="Delete Product">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                    tableBody.innerHTML += row;
-                });
-            } catch (error) {
-                console.log("Waiting for backend...");
-            }
-        }
-    </script>
+// ── INIT ──────────────────────────────────────────────
+window.onload = () => {
+  const role = localStorage.getItem("role") || "staff";
+  const user = localStorage.getItem("username") || "User";
+  document.getElementById("userName").textContent = user;
+  document.getElementById("userRole").textContent = role;
+  document.getElementById("userAv").textContent = user[0].toUpperCase();
+  if (role === "admin") {
+    document.getElementById("nav-admin").style.display = "flex";
+    fetchPending();
+  }
+  fetchProducts();
+};
+
+// ── ROUTING ───────────────────────────────────────────
+const TITLES = { dashboard:"Dashboard", inventory:"Inventory", analytics:"Analytics", forecast:"AI Forecast", add:"Add Product", admin:"Admin" };
+function go(name) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  document.getElementById("nav-" + name).classList.add("active");
+  document.getElementById("pageTitle").textContent = TITLES[name] || name;
+  if (name === "analytics") setTimeout(buildCharts, 50);
+  if (name === "admin") { fetchPending(); loadActivityLog(); }
+}
+
+function logout() { localStorage.clear(); window.location.href = "login.html"; }
+function refreshAll() { fetchProducts(); toast("Refreshed", "info"); }
+
+// ── TOAST ─────────────────────────────────────────────
+function toast(msg, type = "info") {
+  const icons = { success:"fa-check-circle", error:"fa-circle-xmark", info:"fa-circle-info", warning:"fa-triangle-exclamation" };
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.innerHTML = `<i class="fas ${icons[type] || icons.info} ti-${type}"></i><span class="toast-msg">${msg}</span><i class="fas fa-xmark toast-x" onclick="this.parentElement.remove()"></i>`;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .25s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 250); }, 3200);
+}
+
+// ── MODAL ─────────────────────────────────────────────
+function openM(id)  { document.getElementById(id).classList.add("open"); }
+function closeM(id) { document.getElementById(id).classList.remove("open"); }
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) o.classList.remove("open"); }));
+
+// ── FETCH PRODUCTS ─────────────────────────────────────
+async function fetchProducts() {
+  try {
+    const r = await fetch(`${API}/products/`);
+    products = await r.json();
+    renderInv(products);
+    renderDash(products);
+    updateStats(products);
+    updateAlert(products);
+    populateCatFilter(products);
+  } catch {
+    document.getElementById("invTbl").innerHTML = `<tr><td colspan="6" class="empty"><i class="fas fa-plug-circle-xmark"></i>Cannot connect to server</td></tr>`;
+  }
+}
+
+// ── STATS ─────────────────────────────────────────────
+function updateStats(p) {
+  const total = p.length;
+  const low   = p.filter(x => x.stock_level < 100).length;
+  const val   = p.reduce((s, x) => s + x.stock_level * x.price, 0);
+  const cats  = new Set(p.map(x => x.category)).size;
+  const avg   = total ? Math.round(p.reduce((s, x) => s + x.stock_level, 0) / total) : 0;
+  document.getElementById("sTot").textContent = total;
+  document.getElementById("sLow").textContent = low;
+  document.getElementById("sCat").textContent = cats;
+  document.getElementById("sAvg").textContent = avg;
+  document.getElementById("sVal").textContent = val >= 100000 ? `₹${(val/100000).toFixed(1)}L` : `₹${(val/1000).toFixed(1)}K`;
+  const b = document.getElementById("lowBadge");
+  if (low > 0) { b.textContent = low; b.style.display = "inline"; } else b.style.display = "none";
+  // Low stock list
+  const lst = document.getElementById("lowStockList");
+  const lows = p.filter(x => x.stock_level < 100);
+  if (!lows.length) {
+    lst.innerHTML = `<div class="empty"><i class="fas fa-check-circle" style="color:var(--green)"></i>All items stocked</div>`;
+  } else {
+    lst.innerHTML = lows.map(x => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:500;color:var(--text-1)">${esc(x.name)}</div>
+          <div style="font-size:11.5px;color:var(--text-3)">#${x.id} · ${esc(x.category)}</div>
+        </div>
+        <span class="badge badge-red">${x.stock_level} units</span>
+      </div>`).join("");
+  }
+}
+
+function updateAlert(p) {
+  const lows = p.filter(x => x.stock_level < 100);
+  const b = document.getElementById("alertBanner");
+  if (lows.length) {
+    document.getElementById("alertText").textContent = `${lows.length} product(s) low: ${lows.map(x => x.name).join(", ")}`;
+    b.classList.add("show");
+  } else b.classList.remove("show");
+}
+
+function populateCatFilter(p) {
+  const sel = document.getElementById("catFilter");
+  const cur = sel.value;
+  const cats = [...new Set(p.map(x => x.category))].sort();
+  sel.innerHTML = `<option value="">All Categories</option>` + cats.map(c => `<option value="${c}"${c===cur?" selected":""}>${c}</option>`).join("");
+}
+
+// ── FILTER ────────────────────────────────────────────
+function filterTable() {
+  const q   = document.getElementById("searchInp").value.toLowerCase();
+  const cat = document.getElementById("catFilter").value;
+  renderInv(products.filter(p =>
+    (p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || String(p.id).includes(q)) &&
+    (!cat || p.category === cat)
+  ));
+}
+
+// ── RENDER ────────────────────────────────────────────
+function stockBadge(n) {
+  if (n < 100) return `<span class="badge badge-red">${n}</span>`;
+  if (n < 300) return `<span class="badge badge-amber">${n}</span>`;
+  return `<span class="badge badge-green">${n}</span>`;
+}
+
+function renderInv(p) {
+  const tb = document.getElementById("invTbl");
+  if (!p.length) { tb.innerHTML = `<tr><td colspan="6" class="empty"><i class="fas fa-box-open"></i>No products found</td></tr>`; return; }
+  tb.innerHTML = p.map(x => `
+    <tr class="${x.stock_level < 100 ? 'low' : ''}">
+      <td class="mono text-dim" style="font-size:12px">#${x.id}</td>
+      <td>
+        <span style="font-weight:500;cursor:pointer;transition:color .15s"
+          onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color=''"
+          onclick="viewSales(${x.id},'${esc(x.name)}')">${esc(x.name)}</span>
+      </td>
+      <td><span class="badge badge-gray">${esc(x.category)}</span></td>
+      <td>${stockBadge(x.stock_level)}</td>
+      <td class="text-muted mono" style="font-size:13px">₹${x.price.toFixed(2)}</td>
+      <td style="text-align:center">
+        <div style="display:flex;gap:3px;justify-content:center">
+          <button class="tbl-btn g" onclick="exportExcel(${x.id})" title="Export Excel"><i class="fas fa-file-arrow-down"></i></button>
+          <button class="tbl-btn a" onclick="triggerUpload(${x.id})" title="Upload Excel"><i class="fas fa-file-arrow-up"></i></button>
+          <button class="tbl-btn" onclick="openEdit(${x.id})" title="Edit"><i class="fas fa-pen"></i></button>
+          <button class="tbl-btn r" onclick="delProduct(${x.id})" title="Delete"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>`).join("");
+}
+
+function renderDash(p) {
+  const tb = document.getElementById("dashTbl");
+  const sl = p.slice(0, 6);
+  if (!sl.length) { tb.innerHTML = `<tr><td colspan="6" class="empty"><i class="fas fa-box-open"></i>No products</td></tr>`; return; }
+  tb.innerHTML = sl.map(x => `
+    <tr>
+      <td class="mono text-dim" style="font-size:12px">#${x.id}</td>
+      <td style="font-weight:500">${esc(x.name)}</td>
+      <td><span class="badge badge-gray">${esc(x.category)}</span></td>
+      <td>${stockBadge(x.stock_level)}</td>
+      <td class="text-muted mono" style="font-size:13px">₹${x.price.toFixed(2)}</td>
+      <td>${x.stock_level < 100 ? '<span class="badge badge-red">Low</span>' : '<span class="badge badge-green">OK</span>'}</td>
+    </tr>`).join("");
+}
+
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// ── ADD PRODUCT ───────────────────────────────────────
+async function addProduct() {
+  const name  = document.getElementById("pName").value.trim();
+  const cat   = document.getElementById("pCat").value.trim();
+  const stock = parseInt(document.getElementById("pStock").value);
+  const price = parseFloat(document.getElementById("pPrice").value);
+  if (!name || !cat || isNaN(stock) || isNaN(price)) return toast("Fill in all fields.", "error");
+  if (stock < 100) return toast("Minimum 100 units required.", "error");
+  const btn = document.getElementById("addBtn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving…';
+  try {
+    const r = await fetch(`${API}/products/`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,category:cat,stock_level:stock,price}) });
+    const d = await r.json();
+    if (d.success === false) return toast(d.message || d.detail, "error");
+    ["pName","pCat","pStock","pPrice"].forEach(id => document.getElementById(id).value = "");
+    toast(`"${name}" added!`, "success");
+    fetchProducts(); go("inventory");
+  } catch { toast("Error saving.", "error"); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-database"></i> Save to Database'; }
+}
+
+// ── EDIT ──────────────────────────────────────────────
+function openEdit(id) {
+  const p = products.find(x => x.id === id); if (!p) return;
+  editId = id;
+  document.getElementById("editIdLabel").textContent = `#${id}`;
+  document.getElementById("eName").value  = p.name;
+  document.getElementById("eCat").value   = p.category;
+  document.getElementById("eStock").value = p.stock_level;
+  document.getElementById("ePrice").value = p.price;
+  openM("editOverlay");
+}
+async function saveEdit() {
+  const name  = document.getElementById("eName").value.trim();
+  const cat   = document.getElementById("eCat").value.trim();
+  const stock = parseInt(document.getElementById("eStock").value);
+  const price = parseFloat(document.getElementById("ePrice").value);
+  if (!name || !cat || isNaN(stock) || isNaN(price)) return toast("All fields required.", "error");
+  try {
+    const r = await fetch(`${API}/products/${editId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,category:cat,stock_level:stock,price}) });
+    const d = await r.json();
+    if (d.success) { toast("Product updated.", "success"); closeM("editOverlay"); fetchProducts(); }
+    else toast(d.message, "error");
+  } catch { toast("Update failed.", "error"); }
+}
+
+// ── DELETE ────────────────────────────────────────────
+async function delProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!confirm(`Delete "${p?.name || 'Product #'+id}"? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(`${API}/products/${id}`, { method:"DELETE" });
+    const d = await r.json();
+    if (d.success) { toast("Deleted.", "warning"); fetchProducts(); }
+    else toast(d.message, "error");
+  } catch { toast("Delete failed.", "error"); }
+}
+
+// ── SALES ─────────────────────────────────────────────
+async function viewSales(id, name) {
+  document.getElementById("salesModalName").textContent = name;
+  document.getElementById("salesModalBody").innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
+  openM("salesOverlay");
+  try {
+    const r = await fetch(`${API}/sales/${id}`);
+    const d = await r.json();
+    if (d.error) { document.getElementById("salesModalBody").innerHTML = `<div class="empty">${d.error}</div>`; return; }
+    const rows = d.sales_data.slice(-10).reverse().map(s => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 18px;border-bottom:1px solid var(--border)">
+        <span class="text-dim mono" style="font-size:12px">${s.date}</span>
+        <span class="badge badge-blue">${s.units_sold} units</span>
+      </div>`).join("");
+    document.getElementById("salesModalBody").innerHTML = `
+      <div style="padding:10px 18px;font-size:10.5px;color:var(--text-3);letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--border)">Last 10 Days</div>
+      ${rows}
+      <div style="padding:10px 18px;font-size:12px;color:var(--text-3)">Total records: ${d.sales_data.length}</div>`;
+  } catch { document.getElementById("salesModalBody").innerHTML = `<div class="empty">Failed to load.</div>`; }
+}
+
+// ── EXCEL ─────────────────────────────────────────────
+function exportExcel(id) { window.location.href = `${API}/export-excel/${id}`; toast("Download started.", "info"); }
+function triggerUpload(id) { uploadId = id; document.getElementById("fileUpload").click(); }
+async function handleUpload() {
+  const file = document.getElementById("fileUpload").files[0]; if (!file) return;
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const r = await fetch(`${API}/upload-excel/${uploadId}`, { method:"POST", body:fd });
+    const d = await r.json();
+    toast(d.success ? d.message : (d.error || "Upload failed."), d.success ? "success" : "error");
+  } catch { toast("Upload failed.", "error"); }
+  document.getElementById("fileUpload").value = "";
+}
+
+// ── PREDICT ───────────────────────────────────────────
+async function predict() {
+  const id   = document.getElementById("predId").value;
+  const days = document.getElementById("predDays").value;
+  if (!id || !days) return toast("Enter Product ID and days.", "error");
+  if (days > 30) return toast("Maximum 30 days.", "error");
+  const btn = document.getElementById("predBtn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running…';
+  try {
+    const r = await fetch(`${API}/predict-demand/${id}/${days}`);
+    const d = await r.json();
+    if (d.error || d.detail) return toast(d.error || d.detail, "error");
+    document.getElementById("aiResult").style.display = "block";
+    document.getElementById("aiNum").textContent  = `${d.predicted_sales_volume} units`;
+    document.getElementById("aiProd").textContent = `${d.product_name} — next ${days} day(s)`;
+    document.getElementById("aiNote").textContent = d.note;
+    toast(`Forecast ready for ${d.product_name}`, "success");
+  } catch { toast("AI Engine error.", "error"); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> Run Forecast'; }
+}
+
+// ── ADMIN ─────────────────────────────────────────────
+async function fetchPending() {
+  document.getElementById("pendingList").innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
+  try {
+    const r = await fetch(`${API}/pending-staff/`);
+    const u = await r.json();
+    const b = document.getElementById("pendingBadge");
+    if (!u.length) { b.style.display="none"; document.getElementById("pendingList").innerHTML = `<div class="empty"><i class="fas fa-users-check" style="color:var(--green)"></i>No pending approvals</div>`; return; }
+    b.textContent = u.length; b.style.display = "inline";
+    document.getElementById("pendingList").innerHTML = u.map(x => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;border-radius:6px;background:var(--amber-bg);border:1px solid var(--amber-bd);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:var(--amber)">${x.username[0].toUpperCase()}</div>
+          <div>
+            <div style="font-weight:500;font-size:13.5px">${esc(x.username)}</div>
+            <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">Staff · Pending</div>
+          </div>
+        </div>
+        <button class="btn btn-green" onclick="approveUser(${x.id})" style="font-size:12px;padding:5px 12px"><i class="fas fa-check"></i> Approve</button>
+      </div>`).join("");
+  } catch { toast("Failed to load pending users.", "error"); }
+}
+
+async function approveUser(id) {
+  try {
+    const r = await fetch(`${API}/approve-staff/${id}`, { method:"PUT" });
+    const d = await r.json();
+    if (d.success) { toast(d.message, "success"); fetchPending(); }
+    else toast(d.message, "error");
+  } catch { toast("Approval failed.", "error"); }
+}
+
+async function loadActivityLog() {
+  document.getElementById("activityLog").innerHTML = `<div class="empty"><span class="spinner"></span></div>`;
+  try {
+    const r = await fetch(`${API}/activity-log/`);
+    const logs = await r.json();
+    if (!logs.length) { document.getElementById("activityLog").innerHTML = `<div class="empty"><i class="fas fa-clock"></i>No activity yet</div>`; return; }
+    const actionColor = { CREATE:"var(--green)", UPDATE:"var(--blue)", DELETE:"var(--red)" };
+    document.getElementById("activityLog").innerHTML = logs.map(l => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 18px;border-bottom:1px solid var(--border)">
+        <span class="badge" style="background:transparent;border:1px solid ${actionColor[l.action]||'var(--border)'};color:${actionColor[l.action]||'var(--text-2)'};flex-shrink:0;margin-top:1px">${l.action}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.detail||'—')}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px">${l.performed_by||'system'} · ${l.timestamp?.slice(0,16)||''}</div>
+        </div>
+      </div>`).join("");
+  } catch { document.getElementById("activityLog").innerHTML = `<div class="empty">Failed to load log.</div>`; }
+}
+
+// ── CHARTS ────────────────────────────────────────────
+const charts = {};
+function destroyChart(k) { if (charts[k]) { charts[k].destroy(); delete charts[k]; } }
+
+function getChartColors() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  return {
+    text:    isDark ? "#888888" : "#aaaaaa",
+    grid:    isDark ? "#272727" : "#efefef",
+    palette: ["#111111","#555555","#888888","#aaaaaa","#cccccc","#e5e5e5"]
+              .map((c,i) => document.documentElement.getAttribute("data-theme") === "dark"
+                ? ["#f0f0f0","#aaaaaa","#888888","#555555","#333333","#222222"][i] : c),
+  };
+}
+
+function chartBase() {
+  const c = getChartColors();
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: c.text, font: { family: "Geist", size: 11 }, boxWidth: 10, padding: 14 } } },
+    scales: {
+      x: { ticks:{color:c.text,font:{family:"Geist",size:10}}, grid:{color:c.grid}, border:{color:c.grid} },
+      y: { ticks:{color:c.text,font:{family:"Geist",size:10}}, grid:{color:c.grid}, border:{color:c.grid} }
+    }
+  };
+}
+
+function buildCharts() {
+  if (!products.length) return;
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const accent = isDark ? "#f0f0f0" : "#111111";
+  const accentA = isDark ? "rgba(240,240,240,.15)" : "rgba(17,17,17,.08)";
+  const c = getChartColors();
+
+  // Stock bar
+  destroyChart("stockBar");
+  const top10 = [...products].sort((a,b) => b.stock_level-a.stock_level).slice(0,10);
+  const sbCtx = document.getElementById("stockBar")?.getContext("2d");
+  if (sbCtx) charts.stockBar = new Chart(sbCtx, {
+    type: "bar",
+    data: {
+      labels: top10.map(p => p.name.length>14 ? p.name.slice(0,13)+"…" : p.name),
+      datasets: [{
+        data: top10.map(p => p.stock_level),
+        backgroundColor: top10.map(p => p.stock_level < 100 ? "rgba(220,38,38,.2)" : accentA),
+        borderColor:     top10.map(p => p.stock_level < 100 ? "#dc2626" : accent),
+        borderWidth: 1, borderRadius: 4
+      }]
+    },
+    options: { ...chartBase(), plugins:{legend:{display:false}} }
+  });
+
+  // Category doughnut (dashboard)
+  const catCounts = {};
+  products.forEach(p => catCounts[p.category] = (catCounts[p.category]||0)+1);
+  const catLabels = Object.keys(catCounts);
+  const catData   = catLabels.map(k => catCounts[k]);
+  const grays     = isDark
+    ? ["rgba(240,240,240,.9)","rgba(240,240,240,.6)","rgba(240,240,240,.4)","rgba(240,240,240,.25)","rgba(240,240,240,.15)"]
+    : ["rgba(17,17,17,.85)","rgba(17,17,17,.6)","rgba(17,17,17,.4)","rgba(17,17,17,.25)","rgba(17,17,17,.12)"];
+
+  ["catChart","catDo"].forEach(id => {
+    destroyChart(id);
+    const ctx = document.getElementById(id)?.getContext("2d");
+    if (ctx) charts[id] = new Chart(ctx, {
+      type:"doughnut",
+      data:{ labels:catLabels, datasets:[{ data:catData, backgroundColor:grays, borderColor: isDark?"#1a1a1a":"#ffffff", borderWidth:2, hoverOffset:4 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:"62%", plugins:{ legend:{ position:"bottom", labels:{ color:c.text, font:{family:"Geist",size:11}, boxWidth:10, padding:12 } } } }
+    });
+  });
+
+  // Value bar
+  const catVal = {};
+  products.forEach(p => catVal[p.category] = (catVal[p.category]||0) + p.stock_level*p.price);
+  destroyChart("valChart");
+  const vCtx = document.getElementById("valChart")?.getContext("2d");
+  if (vCtx) charts.valChart = new Chart(vCtx, {
+    type:"bar",
+    data:{ labels:Object.keys(catVal), datasets:[{ data:Object.values(catVal).map(v=>Math.round(v)), backgroundColor:accentA, borderColor:accent, borderWidth:1, borderRadius:4 }] },
+    options:{ ...chartBase(), indexAxis:"y", plugins:{legend:{display:false}} }
+  });
+}
+
+function rebuildCharts() {
+  if (document.getElementById("tab-analytics")?.classList.contains("active")) {
+    setTimeout(buildCharts, 50);
+  }
+}
+
+async function loadSalesChart() {
+  const id = document.getElementById("salesId").value;
+  if (!id) return toast("Enter a Product ID.", "error");
+  try {
+    const r = await fetch(`${API}/sales/${id}`);
+    const d = await r.json();
+    if (d.error) return toast(d.error, "error");
+    const last14 = d.sales_data.slice(-14);
+    destroyChart("salesLine");
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const accent = isDark ? "#f0f0f0" : "#111111";
+    const accentA = isDark ? "rgba(240,240,240,.1)" : "rgba(17,17,17,.06)";
+    const c = getChartColors();
+    const ctx = document.getElementById("salesLine")?.getContext("2d");
+    if (!ctx) return;
+    charts.salesLine = new Chart(ctx, {
+      type:"line",
+      data:{ labels:last14.map(s=>s.date.slice(5)), datasets:[{ label:d.product_name, data:last14.map(s=>s.units_sold), borderColor:accent, backgroundColor:accentA, tension:.35, pointRadius:3, pointBackgroundColor:accent, fill:true }] },
+      options:{ ...chartBase(), plugins:{legend:{display:false}} }
+    });
+    toast(`Sales loaded for ${d.product_name}`, "success");
+  } catch { toast("Failed to load sales data.", "error"); }
+}
+</script>
 </body>
 </html>

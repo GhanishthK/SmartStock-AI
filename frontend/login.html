@@ -1,74 +1,351 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartStock AI - Access</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartStock AI — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #f5f5f4;
+  --surface:   #ffffff;
+  --border:    #e5e5e5;
+  --border-2:  #d4d4d4;
+  --text-1:    #111111;
+  --text-2:    #555555;
+  --text-3:    #aaaaaa;
+  --accent-bg: #111111;
+  --accent-fg: #ffffff;
+  --err-bg:    #fff1f2;
+  --err-bd:    #fecdd3;
+  --err-tx:    #be123c;
+  --ok-bg:     #f0fdf4;
+  --ok-bd:     #bbf7d0;
+  --ok-tx:     #15803d;
+  --sh:        0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --sh-lg:     0 8px 32px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
+}
+[data-theme="dark"] {
+  --bg:        #0f0f0f;
+  --surface:   #1a1a1a;
+  --border:    #272727;
+  --border-2:  #383838;
+  --text-1:    #f0f0f0;
+  --text-2:    #999999;
+  --text-3:    #4a4a4a;
+  --accent-bg: #f0f0f0;
+  --accent-fg: #111111;
+  --err-bg:    #1f1215;
+  --err-bd:    #450a0a;
+  --err-tx:    #fca5a5;
+  --ok-bg:     #0c1a10;
+  --ok-bd:     #14532d;
+  --ok-tx:     #86efac;
+  --sh:        0 1px 3px rgba(0,0,0,.4);
+  --sh-lg:     0 8px 32px rgba(0,0,0,.5);
+}
+
+body {
+  background: var(--bg);
+  font-family: 'Geist', sans-serif;
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+}
+
+.theme-btn {
+  position: fixed; top: 18px; right: 18px;
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; box-shadow: var(--sh);
+}
+.theme-btn:hover { color: var(--text-1); border-color: var(--border-2); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 38px 34px 34px;
+  width: 372px;
+  box-shadow: var(--sh-lg);
+  animation: up .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes up {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.logo {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 26px;
+}
+.logo-mark {
+  width: 32px; height: 32px;
+  background: var(--text-1);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Instrument Serif', serif;
+  font-size: 15px; color: var(--bg);
+  flex-shrink: 0; transition: background .2s;
+}
+.logo-text {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px; color: var(--text-1);
+  letter-spacing: -.01em;
+}
+
+h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 24px; font-weight: 400; font-style: italic;
+  color: var(--text-1); letter-spacing: -.02em;
+  margin-bottom: 5px;
+}
+.sub {
+  font-size: 13px; color: var(--text-2);
+  margin-bottom: 26px; line-height: 1.5;
+}
+
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11.5px; font-weight: 500; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-2);
+  margin-bottom: 6px;
+}
+.inp-wrap { position: relative; }
+.inp-wrap input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px 9px 34px;
+  font-family: 'Geist', sans-serif;
+  font-size: 14px; color: var(--text-1);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.inp-wrap input:focus {
+  border-color: var(--border-2);
+  box-shadow: 0 0 0 3px rgba(128,128,128,.1);
+}
+.inp-wrap input::placeholder { color: var(--text-3); }
+.inp-wrap .ic {
+  position: absolute; left: 11px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3); font-size: 11px; pointer-events: none;
+}
+.eye {
+  position: absolute; right: 11px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3); font-size: 11px; cursor: pointer;
+  transition: color .15s;
+}
+.eye:hover { color: var(--text-2); }
+
+.btn {
+  width: 100%; padding: 10px;
+  background: var(--accent-bg); color: var(--accent-fg);
+  border: none; border-radius: 8px;
+  font-family: 'Geist', sans-serif;
+  font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: opacity .15s;
+  margin-top: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn:hover:not(:disabled) { opacity: .82; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.divider {
+  display: flex; align-items: center; gap: 11px;
+  margin: 20px 0 16px;
+}
+.divider-line { flex:1; height:1px; background:var(--border); }
+.divider span { font-size: 10.5px; color: var(--text-3); letter-spacing: .06em; }
+
+.link {
+  display: block; text-align: center;
+  font-size: 13px; color: var(--text-2);
+  cursor: pointer; transition: color .15s;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-2);
+}
+.link:hover { color: var(--text-1); }
+
+.msg {
+  display: none; margin-top: 13px;
+  padding: 9px 11px; border-radius: 8px;
+  font-size: 12.5px;
+  align-items: center; gap: 8px; line-height: 1.4;
+}
+.msg.show { display: flex; animation: fi .2s ease; }
+.msg.error   { background:var(--err-bg); border:1px solid var(--err-bd); color:var(--err-tx); }
+.msg.success { background:var(--ok-bg);  border:1px solid var(--ok-bd);  color:var(--ok-tx); }
+@keyframes fi { from{opacity:0;transform:translateY(-2px)} to{opacity:1;transform:translateY(0)} }
+
+.spinner {
+  width:12px; height:12px;
+  border:2px solid rgba(128,128,128,.3);
+  border-top-color: currentColor;
+  border-radius:50%;
+  animation:spin .6s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+
+footer {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: var(--text-3); letter-spacing: .04em; white-space: nowrap;
+}
+</style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center h-screen">
+<body>
 
-    <div class="bg-white p-8 rounded-xl shadow-lg w-96 border-t-4 border-indigo-600">
-        <div class="text-center mb-6">
-            <i class="fas fa-cubes text-indigo-600 text-4xl mb-2"></i>
-            <h2 class="text-2xl font-bold text-gray-800" id="formTitle">System Login</h2>
-            <p class="text-sm text-gray-500" id="formSubtitle">Enter credentials to access dashboard.</p>
-        </div>
+<button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+  <i id="themeIcon" class="fas fa-moon"></i>
+</button>
 
-        <input type="text" id="username" placeholder="Username" class="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <input type="password" id="password" placeholder="Password" class="w-full border border-gray-300 rounded-lg px-4 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        
-        <button id="actionBtn" onclick="handleAuth('login')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-            Sign In
-        </button>
+<div class="card">
+  <div class="logo">
+    <div class="logo-mark">S</div>
+    <span class="logo-text">SmartStock AI</span>
+  </div>
 
-        <div class="mt-4 text-center">
-            <button onclick="toggleMode()" id="toggleBtn" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                Need an account? Request access.
-            </button>
-        </div>
+  <h1 id="title">Welcome back</h1>
+  <p class="sub" id="sub">Sign in to access your inventory dashboard.</p>
+
+  <div class="field">
+    <label>Username</label>
+    <div class="inp-wrap">
+      <i class="fas fa-user ic"></i>
+      <input type="text" id="username" placeholder="Enter your username" autocomplete="username">
     </div>
+  </div>
 
-    <script>
-        const API_URL = "http://127.0.0.1:8000";
-        let isLoginMode = true;
+  <div class="field">
+    <label>Password</label>
+    <div class="inp-wrap">
+      <i class="fas fa-lock ic"></i>
+      <input type="password" id="password" placeholder="Enter your password">
+      <span class="eye" onclick="togglePw()"><i class="fas fa-eye" id="eyeIcon"></i></span>
+    </div>
+  </div>
 
-        function toggleMode() {
-            isLoginMode = !isLoginMode;
-            document.getElementById("formTitle").innerText = isLoginMode ? "System Login" : "Request Access";
-            document.getElementById("formSubtitle").innerText = isLoginMode ? "Enter credentials to access dashboard." : "Create an account. Requires Admin approval.";
-            document.getElementById("actionBtn").innerText = isLoginMode ? "Sign In" : "Sign Up";
-            document.getElementById("actionBtn").setAttribute("onclick", isLoginMode ? "handleAuth('login')" : "handleAuth('signup')");
-            document.getElementById("toggleBtn").innerText = isLoginMode ? "Need an account? Request access." : "Already have an account? Sign in.";
-        }
+  <button class="btn" id="actionBtn" onclick="go('login')">Sign In</button>
 
-        async function handleAuth(action) {
-            const user = document.getElementById("username").value;
-            const pass = document.getElementById("password").value;
+  <div class="msg" id="msgBox">
+    <i class="fas fa-circle-info"></i>
+    <span id="msgTxt"></span>
+  </div>
 
-            if (!user || !pass) return alert("Please fill all fields.");
+  <div class="divider">
+    <div class="divider-line"></div>
+    <span>OR</span>
+    <div class="divider-line"></div>
+  </div>
 
-            try {
-                const response = await fetch(`${API_URL}/${action}/`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: user, password: pass })
-                });
-                
-                const data = await response.json();
-                alert(data.message);
+  <span class="link" onclick="toggle()" id="toggleBtn">Request staff access</span>
+</div>
 
-                if (data.success && action === 'login') {
-                    localStorage.setItem("isLoggedIn", "true");
-                    localStorage.setItem("role", data.role); // Save role!
-                    localStorage.setItem("username", user);
-                    window.location.href = "index.html";
-                }
-            } catch (error) {
-                alert("Server connection failed.");
-            }
-        }
-    </script>
+<footer>SmartStock AI &nbsp;&middot;&nbsp; v2.0 &nbsp;&middot;&nbsp; Final Year Project</footer>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let isLogin = true;
+
+// Theme
+(function() {
+  const t = localStorage.getItem("ss-theme") || "light";
+  applyTheme(t);
+})();
+
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  document.getElementById("themeIcon").className = t === "dark" ? "fas fa-sun" : "fas fa-moon";
+  localStorage.setItem("ss-theme", t);
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+}
+
+function togglePw() {
+  const i = document.getElementById("password");
+  const e = document.getElementById("eyeIcon");
+  i.type = i.type === "password" ? "text" : "password";
+  e.className = i.type === "password" ? "fas fa-eye" : "fas fa-eye-slash";
+}
+
+function toggle() {
+  isLogin = !isLogin;
+  clearMsg();
+  if (isLogin) {
+    document.getElementById("title").textContent = "Welcome back";
+    document.getElementById("sub").textContent = "Sign in to access your inventory dashboard.";
+    document.getElementById("actionBtn").textContent = "Sign In";
+    document.getElementById("actionBtn").setAttribute("onclick", "go('login')");
+    document.getElementById("toggleBtn").textContent = "Request staff access";
+  } else {
+    document.getElementById("title").textContent = "Create account";
+    document.getElementById("sub").textContent = "Request staff access — an admin will approve you.";
+    document.getElementById("actionBtn").textContent = "Submit Request";
+    document.getElementById("actionBtn").setAttribute("onclick", "go('signup')");
+    document.getElementById("toggleBtn").textContent = "Already have an account? Sign in";
+  }
+}
+
+function showMsg(txt, type) {
+  const b = document.getElementById("msgBox");
+  b.className = `msg ${type} show`;
+  document.getElementById("msgTxt").textContent = txt;
+}
+function clearMsg() { document.getElementById("msgBox").className = "msg"; }
+
+function setLoading(on) {
+  const b = document.getElementById("actionBtn");
+  b.disabled = on;
+  b.innerHTML = on
+    ? '<span class="spinner"></span> Please wait…'
+    : (isLogin ? "Sign In" : "Submit Request");
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") go(isLogin ? "login" : "signup");
+});
+
+async function go(action) {
+  const u = document.getElementById("username").value.trim();
+  const p = document.getElementById("password").value;
+  if (!u || !p) return showMsg("Please fill in all fields.", "error");
+  setLoading(true); clearMsg();
+  try {
+    const r = await fetch(`${API}/${action}/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const d = await r.json();
+    if (d.success && action === "login") {
+      showMsg("Access granted. Redirecting…", "success");
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("role", d.role);
+      localStorage.setItem("username", u);
+      setTimeout(() => window.location.href = "index.html", 700);
+    } else {
+      showMsg(d.message, d.success ? "success" : "error");
+    }
+  } catch {
+    showMsg("Cannot connect to server. Is it running?", "error");
+  } finally {
+    setLoading(false);
+  }
+}
+</script>
 </body>
 </html>

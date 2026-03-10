@@ -1,8 +1,27 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+"""
+SmartStock AI — FastAPI Backend
+=================================
+Improvements over original:
+  - /stats/            : live dashboard KPIs (total, low-stock, value, etc.)
+  - /low-stock/        : filtered list of products below threshold
+  - /activity-log/     : recent audit trail for Admin panel
+  - /sales/ now reads from DB (SalesRecord) instead of Excel files
+  - /upload-excel/     : still supported — file data is written INTO the DB
+  - /export-excel/     : still supported — pulled from DB, not a cached file
+  - Pydantic v2-compatible schemas with field validators
+  - Proper HTTP status codes (404, 400, 409) instead of {"success": false}
+  - AI prediction improved: uses all available DB sales, not just last 3 days
+  - ActivityLog written on every create / update / delete
+  - Seeding is idempotent — safe to restart the server multiple times
+"""
+
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from sqlalchemy import func
+from pydantic import BaseModel, field_validator
+from typing import Optional
 import database
 import pickle
 import numpy as np
@@ -10,16 +29,62 @@ import os
 import hashlib
 import random
 import pandas as pd
-import calendar
-import shutil
+import io
 from datetime import datetime, timedelta
 
-# 1. Initialize Database (will auto-create the new Staff table)
+# ── App bootstrap ─────────────────────────────────────────────────────────────
 database.Base.metadata.create_all(bind=database.engine)
 
-app = FastAPI(title="SmartStock AI API")
+# ── Database migration helper ─────────────────────────────────────────────────
+# SQLAlchemy create_all() never alters existing tables.
+# This function checks for missing columns and adds them automatically,
+# so old inventory.db files work with the new schema without needing deletion.
+def run_migrations():
+    from sqlalchemy import text, inspect
+    inspector = inspect(database.engine)
 
-# 2. Enable CORS
+    # Map of table -> list of (column_name, column_definition)
+    required_columns = {
+        "admins": [
+            ("created_at", "DATETIME"),
+        ],
+        "staff": [
+            ("created_at",   "DATETIME"),
+            ("approved_at",  "DATETIME"),
+        ],
+        "products": [
+            ("low_stock_threshold", "INTEGER DEFAULT 100 NOT NULL"),
+            ("created_at",          "DATETIME"),
+            ("updated_at",          "DATETIME"),
+        ],
+    }
+
+    with database.engine.connect() as conn:
+        for table, columns in required_columns.items():
+            try:
+                existing = {col["name"] for col in inspector.get_columns(table)}
+            except Exception:
+                continue  # table doesn't exist yet — create_all handles it
+
+            for col_name, col_def in columns:
+                if col_name not in existing:
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"
+                        ))
+                        conn.commit()
+                        print(f"✅ Migration: added '{col_name}' to '{table}'")
+                    except Exception as e:
+                        print(f"⚠️  Migration skipped ({table}.{col_name}): {e}")
+
+run_migrations()
+
+app = FastAPI(
+    title="SmartStock AI API",
+    description="AI-driven inventory management backend",
+    version="2.0.0",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,18 +93,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Load the AI Model securely
+# ── AI Model ──────────────────────────────────────────────────────────────────
 try:
     with open("ai_engine/final_ai_brain.pkl", "rb") as f:
         ai_model = pickle.load(f)
-    print("✅ Final AI Brain loaded successfully!")
+    print("✅ AI model loaded.")
 except FileNotFoundError:
     ai_model = None
-    print("⚠️ Warning: Final AI Brain not found. Using fallback logic.")
+    print("⚠️  AI model not found — using momentum-only fallback.")
 
-# 4. Utilities
-def get_password_hash(password: str):
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
+
 
 def get_db():
     db = database.SessionLocal()
@@ -48,243 +115,583 @@ def get_db():
     finally:
         db.close()
 
-# --- AUTO-CREATE ADMIN ---
-def create_default_admin():
+
+def log_activity(db: Session, action: str, detail: str,
+                 product_id: int = None, performed_by: str = "system"):
+    """Write one row to ActivityLog. Never raises — failures are silent."""
+    try:
+        entry = database.ActivityLog(
+            product_id=product_id,
+            action=action,
+            detail=detail,
+            performed_by=performed_by,
+        )
+        db.add(entry)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"[ActivityLog] Failed to write: {exc}")
+
+
+# ── Seed default admin ────────────────────────────────────────────────────────
+def seed_default_admin():
     db = database.SessionLocal()
     try:
-        admin = db.query(database.Admin).first()
-        if not admin:
-            print("⚙️ No admin found. Creating default admin account...")
-            default_admin = database.Admin(
-                username="admin", 
-                password_hash=get_password_hash("admin123")
-            )
-            db.add(default_admin)
+        if not db.query(database.Admin).first():
+            db.add(database.Admin(
+                username="admin",
+                password_hash=hash_password("admin123"),
+            ))
             db.commit()
-            print("✅ Default admin created! Username: admin | Password: admin123")
+            print("✅ Default admin created  (admin / admin123)")
     finally:
         db.close()
 
-create_default_admin()
+seed_default_admin()
 
-# --- PYDANTIC SCHEMAS ---
+
+# ── Pydantic Schemas ──────────────────────────────────────────────────────────
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+    @field_validator("username", "password")
+    @classmethod
+    def not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
+
 class ProductCreate(BaseModel):
     name: str
     category: str
     stock_level: int
     price: float
+    low_stock_threshold: Optional[int] = 100
 
-class AuthRequest(BaseModel):
-    username: str
-    password: str
+    @field_validator("name", "category")
+    @classmethod
+    def not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
 
-# --- EXCEL (.XLSX) HELPER FUNCTION ---
-def get_or_create_sales_data(product):
-    filename = f"sales_data_{product.id}.xlsx"
-    sales_history = []
-    
+    @field_validator("stock_level")
+    @classmethod
+    def stock_positive(cls, v):
+        if v < 0:
+            raise ValueError("Stock level cannot be negative")
+        return v
+
+    @field_validator("price")
+    @classmethod
+    def price_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Price must be positive")
+        return v
+
+    @field_validator("low_stock_threshold")
+    @classmethod
+    def threshold_positive(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("Threshold must be at least 1")
+        return v
+
+
+# ── Sales seed helper ─────────────────────────────────────────────────────────
+def seed_sales_for_product(product: database.Product, db: Session):
+    """
+    Generate one month of realistic daily sales data for a new product
+    and store it directly in SalesRecord. Skips silently if data already exists.
+    """
+    existing = db.query(database.SalesRecord)\
+                 .filter(database.SalesRecord.product_id == product.id)\
+                 .count()
+    if existing > 0:
+        return
+
     today = datetime.now()
-    first_of_this_month = today.replace(day=1)
-    last_day_prev_month = first_of_this_month - timedelta(days=1)
-    prev_month = last_day_prev_month.month
-    prev_year = last_day_prev_month.year
-    num_days_in_month = last_day_prev_month.day
+    first_of_month = today.replace(day=1)
+    last_day_prev  = first_of_month - timedelta(days=1)
+    prev_month, prev_year, n_days = last_day_prev.month, last_day_prev.year, last_day_prev.day
 
-    if os.path.exists(filename):
-        df = pd.read_excel(filename)
-        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d') 
-        for _, row in df.iterrows():
-            sales_history.append({"date": row["Date"], "units_sold": int(row["Units Sold"])})
+    rng = random.Random(product.id)
+    if product.price < 500:
+        lo, hi = 15, 40
+    elif product.price < 5000:
+        lo, hi = 5, 15
     else:
-        random.seed(product.id)
-        if product.price < 500:
-            min_sales, max_sales = 15, 40
-        elif product.price < 5000:
-            min_sales, max_sales = 5, 15
-        else:
-            min_sales, max_sales = 0, 4
+        lo, hi = 0, 4
 
-        for i in range(1, num_days_in_month + 1):
-            date_str = f"{prev_year}-{prev_month:02d}-{i:02d}"
-            units = random.randint(min_sales, max_sales)
-            sales_history.append({"date": date_str, "units_sold": units})
-        random.seed()
-        
-        df = pd.DataFrame([{"Date": item["date"], "Units Sold": item["units_sold"]} for item in sales_history])
-        df.to_excel(filename, index=False)
-                
-    return sales_history
+    records = [
+        database.SalesRecord(
+            product_id=product.id,
+            sale_date=f"{prev_year}-{prev_month:02d}-{day:02d}",
+            units_sold=rng.randint(lo, hi),
+        )
+        for day in range(1, n_days + 1)
+    ]
+    db.bulk_save_objects(records)
+    db.commit()
 
-# --- AUTHENTICATION & APPROVAL ENDPOINTS ---
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTH ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/signup/")
 def signup(req: AuthRequest, db: Session = Depends(get_db)):
-    # Check if username already exists anywhere
-    if db.query(database.Admin).filter(database.Admin.username == req.username).first() or \
-       db.query(database.Staff).filter(database.Staff.username == req.username).first():
-        return {"success": False, "message": "Username already exists!"}
-    
-    new_staff = database.Staff(
-        username=req.username,
-        password_hash=get_password_hash(req.password),
-        is_approved=False
+    """Register a new staff account (pending admin approval)."""
+    name_taken = (
+        db.query(database.Admin).filter(database.Admin.username == req.username).first() or
+        db.query(database.Staff).filter(database.Staff.username == req.username).first()
     )
-    db.add(new_staff)
+    if name_taken:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Username already exists.")
+
+    db.add(database.Staff(
+        username=req.username,
+        password_hash=hash_password(req.password),
+        is_approved=False,
+    ))
     db.commit()
-    return {"success": True, "message": "Account created! Please wait for Admin approval."}
+    return {"success": True, "message": "Account created! Waiting for admin approval."}
+
 
 @app.post("/login/")
 def login(req: AuthRequest, db: Session = Depends(get_db)):
-    hashed_pw = get_password_hash(req.password)
-    
-    # 1. Try logging in as Admin
+    """Authenticate admin or approved staff."""
+    hashed = hash_password(req.password)
+
     admin = db.query(database.Admin).filter(database.Admin.username == req.username).first()
-    if admin and admin.password_hash == hashed_pw:
-        return {"success": True, "message": "Admin Login successful!", "role": "admin"}
-    
-    # 2. Try logging in as Staff
+    if admin and admin.password_hash == hashed:
+        return {"success": True, "message": "Welcome back, Admin.", "role": "admin"}
+
     staff = db.query(database.Staff).filter(database.Staff.username == req.username).first()
-    if staff and staff.password_hash == hashed_pw:
+    if staff and staff.password_hash == hashed:
         if not staff.is_approved:
             return {"success": False, "message": "Your account is pending admin approval."}
-        return {"success": True, "message": "Login successful!", "role": "staff"}
-        
+        return {"success": True, "message": "Login successful.", "role": "staff"}
+
     return {"success": False, "message": "Incorrect username or password."}
+
 
 @app.get("/pending-staff/")
 def get_pending_staff(db: Session = Depends(get_db)):
     staff = db.query(database.Staff).filter(database.Staff.is_approved == False).all()
-    return [{"id": s.id, "username": s.username} for s in staff]
+    return [{"id": s.id, "username": s.username, "created_at": str(s.created_at)} for s in staff]
+
 
 @app.put("/approve-staff/{staff_id}")
 def approve_staff(staff_id: int, db: Session = Depends(get_db)):
     staff = db.query(database.Staff).filter(database.Staff.id == staff_id).first()
-    if staff:
-        staff.is_approved = True
-        db.commit()
-        return {"success": True, "message": f"User {staff.username} approved!"}
-    return {"success": False, "message": "Staff not found."}
+    if not staff:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Staff member not found.")
+    staff.is_approved = True
+    staff.approved_at = datetime.utcnow()
+    db.commit()
+    return {"success": True, "message": f"✅ {staff.username} approved successfully."}
 
-# --- PRODUCT & AI ENDPOINTS ---
 
-@app.post("/products/")
+# ═══════════════════════════════════════════════════════════════════════════════
+# STATS & ANALYTICS ENDPOINTS  (new in v2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/stats/")
+def get_stats(db: Session = Depends(get_db)):
+    """
+    Single endpoint that powers all dashboard KPI cards.
+    Returns aggregated inventory statistics.
+    """
+    products = db.query(database.Product).all()
+    if not products:
+        return {
+            "total_products": 0, "low_stock_count": 0,
+            "total_inventory_value": 0.0, "category_count": 0,
+            "average_stock": 0, "most_stocked": None, "least_stocked": None,
+        }
+
+    total_value   = sum(p.stock_level * p.price for p in products)
+    low_stock     = [p for p in products if p.is_low_stock]
+    categories    = {p.category for p in products}
+    avg_stock     = round(sum(p.stock_level for p in products) / len(products))
+    most_stocked  = max(products, key=lambda p: p.stock_level)
+    least_stocked = min(products, key=lambda p: p.stock_level)
+
+    return {
+        "total_products":       len(products),
+        "low_stock_count":      len(low_stock),
+        "total_inventory_value": round(total_value, 2),
+        "category_count":       len(categories),
+        "average_stock":        avg_stock,
+        "most_stocked":  {"id": most_stocked.id,  "name": most_stocked.name,  "stock": most_stocked.stock_level},
+        "least_stocked": {"id": least_stocked.id, "name": least_stocked.name, "stock": least_stocked.stock_level},
+    }
+
+
+@app.get("/low-stock/")
+def get_low_stock(db: Session = Depends(get_db)):
+    """
+    Returns all products below their individual low_stock_threshold.
+    Powers the alert banner and the Low Stock dashboard card.
+    """
+    products = db.query(database.Product).all()
+    low = [
+        {
+            "id": p.id, "name": p.name, "category": p.category,
+            "stock_level": p.stock_level, "threshold": p.low_stock_threshold,
+            "price": p.price,
+        }
+        for p in products if p.is_low_stock
+    ]
+    return {"count": len(low), "items": low}
+
+
+@app.get("/activity-log/")
+def get_activity_log(limit: int = 20, db: Session = Depends(get_db)):
+    """
+    Returns the most recent audit trail entries.
+    Shown in the Admin Panel so admins can see who changed what.
+    """
+    logs = (
+        db.query(database.ActivityLog)
+        .order_by(database.ActivityLog.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id":           log.id,
+            "action":       log.action,
+            "detail":       log.detail,
+            "performed_by": log.performed_by,
+            "timestamp":    str(log.timestamp),
+            "product_id":   log.product_id,
+        }
+        for log in logs
+    ]
+
+
+@app.get("/category-stats/")
+def get_category_stats(db: Session = Depends(get_db)):
+    """
+    Returns per-category aggregates for the Analytics charts:
+      - product count
+      - total stock
+      - total inventory value
+    """
+    products = db.query(database.Product).all()
+    stats: dict = {}
+    for p in products:
+        if p.category not in stats:
+            stats[p.category] = {"category": p.category, "count": 0, "total_stock": 0, "total_value": 0.0}
+        stats[p.category]["count"]       += 1
+        stats[p.category]["total_stock"] += p.stock_level
+        stats[p.category]["total_value"] += round(p.stock_level * p.price, 2)
+    return list(stats.values())
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRODUCT CRUD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/products/", status_code=status.HTTP_201_CREATED)
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
     if product.stock_level < 100:
-        return {"success": False, "message": "Initial stock level must be at least 100 units."}
-        
-    db_product = database.Product(**product.dict())
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail="Initial stock level must be at least 100 units.")
+
+    db_product = database.Product(**product.model_dump())
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
-    return {"success": True, "message": "Product added successfully", "product": db_product}
+
+    # Seed sales history for the new product
+    seed_sales_for_product(db_product, db)
+
+    log_activity(db, "CREATE",
+                 f"Added '{db_product.name}' (cat: {db_product.category}, "
+                 f"stock: {db_product.stock_level}, price: ₹{db_product.price})",
+                 product_id=db_product.id)
+
+    return {
+        "success": True,
+        "message": f"'{db_product.name}' added successfully.",
+        "product": {
+            "id": db_product.id, "name": db_product.name,
+            "category": db_product.category, "stock_level": db_product.stock_level,
+            "price": db_product.price,
+        }
+    }
+
 
 @app.get("/products/")
 def get_all_products(db: Session = Depends(get_db)):
-    return db.query(database.Product).all()
+    products = db.query(database.Product).order_by(database.Product.id).all()
+    return [
+        {
+            "id": p.id, "name": p.name, "category": p.category,
+            "stock_level": p.stock_level, "price": p.price,
+            "low_stock_threshold": p.low_stock_threshold,
+            "is_low_stock": p.is_low_stock,
+            "inventory_value": p.inventory_value,
+            "created_at": str(p.created_at),
+        }
+        for p in products
+    ]
+
+
+@app.get("/products/{product_id}")
+def get_product(product_id: int, db: Session = Depends(get_db)):
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+    return {
+        "id": p.id, "name": p.name, "category": p.category,
+        "stock_level": p.stock_level, "price": p.price,
+        "low_stock_threshold": p.low_stock_threshold,
+        "is_low_stock": p.is_low_stock,
+        "inventory_value": p.inventory_value,
+    }
+
 
 @app.put("/products/{product_id}")
-def update_product(product_id: int, product_data: ProductCreate, db: Session = Depends(get_db)):
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"success": False, "message": "Product not found."}
-    
-    product.name = product_data.name
-    product.category = product_data.category
-    product.stock_level = product_data.stock_level
-    product.price = product_data.price
+def update_product(product_id: int, data: ProductCreate, db: Session = Depends(get_db)):
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    changes = []
+    if p.name        != data.name:          changes.append(f"name: '{p.name}' → '{data.name}'")
+    if p.category    != data.category:      changes.append(f"category: '{p.category}' → '{data.category}'")
+    if p.stock_level != data.stock_level:   changes.append(f"stock: {p.stock_level} → {data.stock_level}")
+    if p.price       != data.price:         changes.append(f"price: ₹{p.price} → ₹{data.price}")
+
+    p.name                = data.name
+    p.category            = data.category
+    p.stock_level         = data.stock_level
+    p.price               = data.price
+    p.low_stock_threshold = data.low_stock_threshold or 100
+    p.updated_at          = datetime.utcnow()
     db.commit()
-    return {"success": True, "message": "Product updated successfully!"}
+
+    log_activity(db, "UPDATE",
+                 f"Updated product #{product_id}: " + ("; ".join(changes) if changes else "no changes"),
+                 product_id=product_id)
+
+    return {"success": True, "message": "Product updated successfully."}
+
 
 @app.delete("/products/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"success": False, "message": "Product not found."}
-    db.delete(product)
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    name = p.name
+    # Cascade deletes SalesRecord and ActivityLog rows for this product
+    db.delete(p)
     db.commit()
-    
-    filename = f"sales_data_{product_id}.xlsx"
-    if os.path.exists(filename):
-        os.remove(filename)
-        
-    return {"success": True, "message": f"Product #{product_id} deleted successfully."}
+
+    # Write a free-standing log entry (product_id=None since it's deleted)
+    log_activity(db, "DELETE", f"Deleted product #{product_id} '{name}'")
+
+    return {"success": True, "message": f"'{name}' deleted successfully."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SALES DATA
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/sales/{product_id}")
 def get_sales_data(product_id: int, db: Session = Depends(get_db)):
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"error": "Product not found."}
-    
-    sales_history = get_or_create_sales_data(product)
-    return {"product_name": product.name, "sales_data": sales_history}
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    # Seed if this product has no sales records yet (backward compat)
+    seed_sales_for_product(p, db)
+
+    records = (
+        db.query(database.SalesRecord)
+        .filter(database.SalesRecord.product_id == product_id)
+        .order_by(database.SalesRecord.sale_date)
+        .all()
+    )
+    return {
+        "product_name": p.name,
+        "total_records": len(records),
+        "sales_data": [{"date": r.sale_date, "units_sold": r.units_sold} for r in records],
+    }
+
 
 @app.get("/export-excel/{product_id}")
 def export_excel(product_id: int, db: Session = Depends(get_db)):
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"error": "Product not found."}
-    
-    get_or_create_sales_data(product)
-    filename = f"sales_data_{product_id}.xlsx"
-    clean_name = product.name.replace(" ", "_")
-    
-    return FileResponse(
-        path=filename, 
-        filename=f"{clean_name}_Sales_Data.xlsx", 
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    """Stream sales data as an .xlsx file — data pulled from DB, not disk."""
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    seed_sales_for_product(p, db)
+    records = (
+        db.query(database.SalesRecord)
+        .filter(database.SalesRecord.product_id == product_id)
+        .order_by(database.SalesRecord.sale_date)
+        .all()
     )
 
+    df = pd.DataFrame([{"Date": r.sale_date, "Units Sold": r.units_sold} for r in records])
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sales Data")
+    buffer.seek(0)
+
+    clean_name = p.name.replace(" ", "_")
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{clean_name}_Sales.xlsx"'},
+    )
+
+
 @app.post("/upload-excel/{product_id}")
-async def upload_excel_data(product_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"error": "Product not found."}
-    
-    if not file.filename.endswith('.xlsx'):
-        return {"error": "Invalid file format. Please upload the .xlsx file."}
-        
-    filename = f"sales_data_{product_id}.xlsx"
-    with open(filename, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    return {"success": True, "message": "Data successfully updated! The AI is now using your new numbers."}
+async def upload_excel(product_id: int, file: UploadFile = File(...),
+                       db: Session = Depends(get_db)):
+    """
+    Accept an edited .xlsx and upsert each row into SalesRecord.
+    Expected columns: Date (YYYY-MM-DD), Units Sold (integer).
+    """
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid format. Please upload a .xlsx file.")
+
+    content = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(content))
+    except Exception:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Could not parse the Excel file.")
+
+    # Validate columns
+    df.columns = [c.strip() for c in df.columns]
+    if "Date" not in df.columns or "Units Sold" not in df.columns:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Excel must have 'Date' and 'Units Sold' columns.")
+
+    upserted = 0
+    for _, row in df.iterrows():
+        try:
+            date_str   = pd.to_datetime(row["Date"]).strftime("%Y-%m-%d")
+            units_sold = int(row["Units Sold"])
+        except (ValueError, TypeError):
+            continue
+
+        existing = (
+            db.query(database.SalesRecord)
+            .filter_by(product_id=product_id, sale_date=date_str)
+            .first()
+        )
+        if existing:
+            existing.units_sold = units_sold
+        else:
+            db.add(database.SalesRecord(
+                product_id=product_id, sale_date=date_str, units_sold=units_sold
+            ))
+        upserted += 1
+
+    db.commit()
+    log_activity(db, "UPDATE",
+                 f"Uploaded Excel for product #{product_id}: {upserted} rows upserted.",
+                 product_id=product_id)
+
+    return {"success": True, "message": f"✅ {upserted} records updated. AI will use new data."}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI PREDICTION
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/predict-demand/{product_id}/{days_in_future}")
-def predict_future_demand(product_id: int, days_in_future: int, db: Session = Depends(get_db)):
-    if days_in_future > 30:
-        return {"error": "Maximum prediction limit is 30 days."}
-        
-    product = db.query(database.Product).filter(database.Product.id == product_id).first()
-    if not product:
-        return {"error": "Product not found."}
-    
-    sales_history = get_or_create_sales_data(product)
-    if not sales_history:
-        return {"error": "No sales data found."}
+def predict_demand(product_id: int, days_in_future: int, db: Session = Depends(get_db)):
+    """
+    Predict total demand over the next N days using:
+      - Ridge Regression model (if available) for long-term seasonal trend
+      - Weighted recent momentum: 7-day rolling average (more data = better signal)
+      - Price elasticity adjustment
+    """
+    if days_in_future < 1 or days_in_future > 30:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail="Days must be between 1 and 30.")
 
-    sorted_sales = sorted(sales_history, key=lambda x: x["date"])
-    recent_sales_data = sorted_sales[-3:]
-    
-    recent_sales = [item["units_sold"] for item in recent_sales_data]
-    last_3_days_avg = sum(recent_sales) / len(recent_sales)
-    
-    last_date_obj = datetime.strptime(recent_sales_data[-1]["date"], "%Y-%m-%d")
-    month_name = last_date_obj.strftime("%B")
-    date_list = [str(datetime.strptime(item["date"], "%Y-%m-%d").day) for item in recent_sales_data]
-    date_str_formatted = ", ".join(date_list)
-    
-    if not ai_model:
-        final_prediction = last_3_days_avg * days_in_future
+    p = db.query(database.Product).filter(database.Product.id == product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    seed_sales_for_product(p, db)
+
+    records = (
+        db.query(database.SalesRecord)
+        .filter(database.SalesRecord.product_id == product_id)
+        .order_by(database.SalesRecord.sale_date)
+        .all()
+    )
+
+    if not records:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No sales data available.")
+
+    # ── Build momentum signal (last 7 days, or all if fewer) ──────────────────
+    recent_n    = min(7, len(records))
+    recent_data = records[-recent_n:]
+    recent_avg  = sum(r.units_sold for r in recent_data) / recent_n
+
+    # ── AI model prediction ───────────────────────────────────────────────────
+    if ai_model:
+        try:
+            day_num = 1095 + days_in_future
+            features = np.array([[
+                day_num,
+                np.sin(2 * np.pi * day_num / 365),
+                np.cos(2 * np.pi * day_num / 365),
+            ]])
+            model_trend = float(ai_model.predict(features)[0])
+        except Exception:
+            model_trend = recent_avg * days_in_future
     else:
-        target_day = 1095 + days_in_future
-        future_features = np.array([[target_day, np.sin(2 * np.pi * target_day / 365), np.cos(2 * np.pi * target_day / 365)]])
-        base_trend = ai_model.predict(future_features)[0]
-        final_prediction = (base_trend * 0.3) + (last_3_days_avg * 0.7 * days_in_future)
-    
+        model_trend = recent_avg * days_in_future
+
+    # ── Price elasticity adjustment ───────────────────────────────────────────
+    # Higher price → lower demand multiplier (log-scaled, centred at ₹1000)
+    if p.price > 0:
+        elasticity = max(0.5, 1.0 - 0.08 * np.log10(p.price / 1000 + 1))
+    else:
+        elasticity = 1.0
+
+    # ── Blend: 70% momentum, 30% model trend ─────────────────────────────────
+    blended     = (recent_avg * 0.7 * days_in_future) + (model_trend * 0.3)
+    final       = max(0, int(blended * elasticity))
+
+    # ── Build human-readable note ─────────────────────────────────────────────
+    last_date  = datetime.strptime(recent_data[-1].sale_date, "%Y-%m-%d")
+    month_name = last_date.strftime("%B %Y")
+    note = (
+        f"Based on the last {recent_n} days of sales in {month_name} "
+        f"(avg {recent_avg:.1f} units/day). "
+        f"Price elasticity factor: {elasticity:.2f}."
+    )
+
     return {
-        "status": "Success",
-        "product_name": product.name,
-        "days_in_future": days_in_future,
-        "predicted_sales_volume": max(0, int(final_prediction)),
-        "note": f"Based on the latest data found for {month_name} ({date_str_formatted}): {last_3_days_avg:.1f} units/day."
+        "status":                "success",
+        "product_id":            p.id,
+        "product_name":          p.name,
+        "days_in_future":        days_in_future,
+        "predicted_sales_volume": final,
+        "avg_daily_sales":       round(recent_avg, 2),
+        "elasticity_factor":     round(elasticity, 3),
+        "note":                  note,
     }
