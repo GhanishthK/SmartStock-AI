@@ -59,6 +59,21 @@ def run_migrations():
         ],
     }
 
+    # Create sales_portal_staff table if it doesn't exist
+    with database.engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sales_portal_staff (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                username      TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                full_name     TEXT NOT NULL,
+                total_sales   REAL DEFAULT 0,
+                total_units   INTEGER DEFAULT 0,
+                created_at    DATETIME
+            )
+        """))
+        conn.commit()
+
     with database.engine.connect() as conn:
         for table, columns in required_columns.items():
             try:
@@ -685,13 +700,239 @@ def predict_demand(product_id: int, days_in_future: int, db: Session = Depends(g
         f"Price elasticity factor: {elasticity:.2f}."
     )
 
+    # ── Reorder suggestion ────────────────────────────────────────────────────
+    current_stock  = p.stock_level
+    reorder_needed = max(0, final - current_stock)
+    stock_status   = (
+        "critical"  if current_stock < final * 0.25 else
+        "low"       if current_stock < final else
+        "sufficient"
+    )
+    reorder_msg = (
+        f"CRITICAL: Only {current_stock} units in stock. Reorder {reorder_needed} units immediately."
+        if stock_status == "critical" else
+        f"LOW: Stock ({current_stock} units) will not cover predicted demand. Reorder {reorder_needed} units."
+        if stock_status == "low" else
+        f"OK: Current stock ({current_stock} units) covers predicted demand ({final} units)."
+    )
+
     return {
-        "status":                "success",
-        "product_id":            p.id,
-        "product_name":          p.name,
-        "days_in_future":        days_in_future,
+        "status":                 "success",
+        "product_id":             p.id,
+        "product_name":           p.name,
+        "days_in_future":         days_in_future,
         "predicted_sales_volume": final,
-        "avg_daily_sales":       round(recent_avg, 2),
-        "elasticity_factor":     round(elasticity, 3),
-        "note":                  note,
+        "avg_daily_sales":        round(recent_avg, 2),
+        "elasticity_factor":      round(elasticity, 3),
+        "note":                   note,
+        "current_stock":          current_stock,
+        "reorder_quantity":       reorder_needed,
+        "stock_status":           stock_status,
+        "reorder_message":        reorder_msg,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SALES PORTAL — Separate login system + sales tracking endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SalesPortalAuth(BaseModel):
+    username: str
+    password: str
+    full_name: Optional[str] = None
+
+class LogSaleRequest(BaseModel):
+    product_id: int
+    units_sold: int
+    staff_username: str
+    note: Optional[str] = ""
+
+    @field_validator("units_sold")
+    @classmethod
+    def validate_units(cls, v):
+        if v < 1:
+            raise ValueError("Units sold must be at least 1.")
+        return v
+
+
+@app.post("/portal/register/")
+def portal_register(req: SalesPortalAuth, db: Session = Depends(get_db)):
+    """Register a new sales staff account (separate from admin/staff system)."""
+    # Check if username already exists in sales_portal_staff table
+    from sqlalchemy import text
+    existing = db.execute(
+        text("SELECT id FROM sales_portal_staff WHERE username = :u"),
+        {"u": req.username}
+    ).fetchone()
+    if existing:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Username already taken.")
+    db.execute(
+        text("""INSERT INTO sales_portal_staff
+                (username, password_hash, full_name, created_at, total_sales, total_units)
+                VALUES (:u, :p, :fn, :ca, 0, 0)"""),
+        {"u": req.username, "p": hash_password(req.password),
+         "fn": req.full_name or req.username, "ca": datetime.utcnow()}
+    )
+    db.commit()
+    return {"success": True, "message": "Account created. You can now log in."}
+
+
+@app.post("/portal/login/")
+def portal_login(req: SalesPortalAuth, db: Session = Depends(get_db)):
+    """Login for sales portal staff."""
+    from sqlalchemy import text
+    row = db.execute(
+        text("SELECT id, username, full_name, total_sales, total_units FROM sales_portal_staff WHERE username = :u AND password_hash = :p"),
+        {"u": req.username, "p": hash_password(req.password)}
+    ).fetchone()
+    if not row:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid username or password.")
+    return {
+        "success":     True,
+        "id":          row[0],
+        "username":    row[1],
+        "full_name":   row[2],
+        "total_sales": row[3],
+        "total_units": row[4],
+    }
+
+
+@app.post("/portal/log-sale/")
+def portal_log_sale(req: LogSaleRequest, db: Session = Depends(get_db)):
+    """Log a sale: deducts stock, records sale, updates staff stats."""
+    from sqlalchemy import text
+
+    p = db.query(database.Product).filter(database.Product.id == req.product_id).first()
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found.")
+    if p.stock_level < req.units_sold:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail=f"Insufficient stock. Only {p.stock_level} units available.")
+
+    # Deduct stock
+    p.stock_level -= req.units_sold
+
+    # Upsert SalesRecord for today
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    existing = db.query(database.SalesRecord).filter(
+        database.SalesRecord.product_id == req.product_id,
+        database.SalesRecord.sale_date == today
+    ).first()
+    if existing:
+        existing.units_sold += req.units_sold
+    else:
+        db.add(database.SalesRecord(
+            product_id=req.product_id,
+            sale_date=today,
+            units_sold=req.units_sold
+        ))
+
+    # Update staff totals
+    revenue = round(req.units_sold * p.price, 2)
+    db.execute(
+        text("""UPDATE sales_portal_staff
+                SET total_sales = total_sales + :rev,
+                    total_units = total_units + :u
+                WHERE username = :staff"""),
+        {"rev": revenue, "u": req.units_sold, "staff": req.staff_username}
+    )
+
+    # Log activity
+    log_activity(db, "SALE",
+                 f"{req.staff_username} sold {req.units_sold}x {p.name} = ₹{revenue}",
+                 req.staff_username)
+
+    db.commit()
+    return {
+        "success":       True,
+        "message":       f"Sale logged: {req.units_sold}x {p.name}",
+        "revenue":       revenue,
+        "stock_remaining": p.stock_level,
+        "low_stock":     p.stock_level < 100,
+    }
+
+
+@app.get("/portal/my-sales/{username}")
+def portal_my_sales(username: str, db: Session = Depends(get_db)):
+    """Sales history and stats for a specific staff member."""
+    from sqlalchemy import text
+
+    staff = db.execute(
+        text("SELECT id, full_name, total_sales, total_units, created_at FROM sales_portal_staff WHERE username = :u"),
+        {"u": username}
+    ).fetchone()
+    if not staff:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Staff not found.")
+
+    # Recent activity from ActivityLog
+    logs = db.query(database.ActivityLog).filter(
+        database.ActivityLog.performed_by == username,
+        database.ActivityLog.action == "SALE"
+    ).order_by(database.ActivityLog.timestamp.desc()).limit(20).all()
+
+    return {
+        "username":    username,
+        "full_name":   staff[1],
+        "total_sales": round(float(staff[2] or 0), 2),
+        "total_units": int(staff[3] or 0),
+        "member_since": str(staff[4])[:10] if staff[4] else "",
+        "recent_activity": [
+            {"detail": l.detail, "time": str(l.timestamp)[:16]}
+            for l in logs
+        ]
+    }
+
+
+@app.get("/portal/leaderboard/")
+def portal_leaderboard(db: Session = Depends(get_db)):
+    """Top 10 sales staff by total revenue."""
+    from sqlalchemy import text
+    rows = db.execute(
+        text("""SELECT username, full_name, total_sales, total_units
+                FROM sales_portal_staff
+                ORDER BY total_sales DESC LIMIT 10""")
+    ).fetchall()
+    return [
+        {"rank": i+1, "username": r[0], "full_name": r[1],
+         "total_sales": round(float(r[2] or 0), 2),
+         "total_units": int(r[3] or 0)}
+        for i, r in enumerate(rows)
+    ]
+
+
+@app.get("/portal/activity-feed/")
+def portal_activity_feed(db: Session = Depends(get_db)):
+    """Live feed of all recent sales activity across all staff."""
+    logs = db.query(database.ActivityLog).filter(
+        database.ActivityLog.action == "SALE"
+    ).order_by(database.ActivityLog.timestamp.desc()).limit(30).all()
+    return [
+        {"detail": l.detail, "staff": l.performed_by,
+         "time": str(l.timestamp)[:16]}
+        for l in logs
+    ]
+
+
+@app.get("/portal/export-sales/{username}")
+def portal_export_sales(username: str, db: Session = Depends(get_db)):
+    """Export sales activity as Excel for a staff member."""
+    from sqlalchemy import text
+    logs = db.query(database.ActivityLog).filter(
+        database.ActivityLog.performed_by == username,
+        database.ActivityLog.action == "SALE"
+    ).order_by(database.ActivityLog.timestamp.desc()).all()
+
+    rows = [{"Activity": l.detail, "Time": str(l.timestamp)[:16]} for l in logs]
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Activity", "Time"])
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False, sheet_name="My Sales")
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{username}_sales.xlsx"'}
+    )

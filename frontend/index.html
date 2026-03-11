@@ -1268,16 +1268,17 @@ function buildCharts() {
   products.forEach(p => catCounts[p.category] = (catCounts[p.category]||0)+1);
   const catLabels = Object.keys(catCounts);
   const catData   = catLabels.map(k => catCounts[k]);
-  const grays     = isDark
-    ? ["rgba(240,240,240,.9)","rgba(240,240,240,.6)","rgba(240,240,240,.4)","rgba(240,240,240,.25)","rgba(240,240,240,.15)"]
-    : ["rgba(17,17,17,.85)","rgba(17,17,17,.6)","rgba(17,17,17,.4)","rgba(17,17,17,.25)","rgba(17,17,17,.12)"];
+  // Distinct minimal palette — muted but clearly differentiable in both themes
+  const catColors = isDark
+    ? ["#6ee7b7","#93c5fd","#fca5a5","#fcd34d","#c4b5fd","#fb923c","#67e8f9","#f9a8d4","#a3e635","#e879f9"]
+    : ["#059669","#2563eb","#dc2626","#d97706","#7c3aed","#ea580c","#0891b2","#db2777","#65a30d","#c026d3"];
 
   ["catChart","catDo"].forEach(id => {
     destroyChart(id);
     const ctx = document.getElementById(id)?.getContext("2d");
     if (ctx) charts[id] = new Chart(ctx, {
       type:"doughnut",
-      data:{ labels:catLabels, datasets:[{ data:catData, backgroundColor:grays, borderColor: isDark?"#1a1a1a":"#ffffff", borderWidth:2, hoverOffset:4 }] },
+      data:{ labels:catLabels, datasets:[{ data:catData, backgroundColor:catColors.slice(0, catLabels.length), borderColor: isDark?"#1a1a1a":"#ffffff", borderWidth:2, hoverOffset:6 }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:"62%", plugins:{ legend:{ position:"bottom", labels:{ color:c.text, font:{family:"Geist",size:11}, boxWidth:10, padding:12 } } } }
     });
   });

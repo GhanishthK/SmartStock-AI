@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartStock AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #f5f5f4;
+  --surface:  #ffffff;
+  --border:   #e5e5e5;
+  --border-2: #d4d4d4;
+  --text-1:   #111111;
+  --text-2:   #555555;
+  --text-3:   #aaaaaa;
+  --accent:   #111111;
+  --sh:       0 1px 2px rgba(0,0,0,.05);
+  --sh-md:    0 4px 16px rgba(0,0,0,.08);
+  --sh-lg:    0 8px 32px rgba(0,0,0,.10);
+}
+[data-theme="dark"] {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --border:   #272727;
+  --border-2: #383838;
+  --text-1:   #f0f0f0;
+  --text-2:   #888888;
+  --text-3:   #444444;
+  --accent:   #f0f0f0;
+  --sh:       0 1px 2px rgba(0,0,0,.3);
+  --sh-md:    0 4px 16px rgba(0,0,0,.4);
+  --sh-lg:    0 8px 32px rgba(0,0,0,.5);
+}
+
+body {
+  background: var(--bg); color: var(--text-1);
+  font-family: 'Geist', sans-serif;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  transition: background .2s, color .2s;
+}
+
+/* ── TOPBAR ─────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: var(--text-1); color: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Instrument Serif', serif; font-size: 15px;
+  flex-shrink: 0; transition: background .2s;
+}
+.logo-name {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px; color: var(--text-1);
+}
+.logo-tag {
+  font-size: 11px; color: var(--text-3);
+  padding: 2px 8px; border: 1px solid var(--border);
+  border-radius: 999px; margin-left: 4px;
+}
+
+.theme-btn {
+  width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-2); cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.theme-btn:hover { background: var(--bg); color: var(--text-1); border-color: var(--border-2); }
+
+/* ── HERO ────────────────────────────────────────────────── */
+main {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 24px 80px;
+}
+
+.eyebrow {
+  font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-3);
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+.eyebrow::before, .eyebrow::after {
+  content: ''; display: block;
+  width: 28px; height: 1px; background: var(--border-2);
+}
+
+h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(38px, 6vw, 58px);
+  color: var(--text-1); text-align: center;
+  line-height: 1.1; letter-spacing: -.02em;
+  margin-bottom: 16px;
+}
+h1 em { font-style: italic; color: var(--text-2); }
+
+.subtitle {
+  font-size: 15px; color: var(--text-2); text-align: center;
+  max-width: 380px; line-height: 1.6; margin-bottom: 56px;
+}
+
+/* ── PORTAL CARDS ────────────────────────────────────────── */
+.cards {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 20px; width: 100%; max-width: 680px;
+}
+
+.portal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 32px 28px;
+  cursor: pointer; text-decoration: none; color: inherit;
+  display: flex; flex-direction: column; gap: 0;
+  transition: all .2s cubic-bezier(.16,1,.3,1);
+  position: relative; overflow: hidden;
+}
+.portal-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--text-1);
+  opacity: 0; transition: opacity .2s;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.portal-card:hover {
+  border-color: var(--border-2);
+  box-shadow: var(--sh-lg);
+  transform: translateY(-3px);
+}
+.portal-card:hover::after { opacity: .02; }
+[data-theme="dark"] .portal-card:hover::after { opacity: .04; }
+
+.card-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--text-1);
+  margin-bottom: 20px; transition: background .2s, border-color .2s;
+}
+.portal-card:hover .card-icon {
+  background: var(--text-1); color: var(--bg);
+  border-color: var(--text-1);
+}
+
+.card-label {
+  font-size: 10.5px; font-weight: 500; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 8px;
+}
+.card-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px; color: var(--text-1);
+  line-height: 1.2; margin-bottom: 10px;
+}
+.card-desc {
+  font-size: 13px; color: var(--text-2);
+  line-height: 1.6; flex: 1;
+}
+
+.card-features {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 20px; padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.feature {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-2);
+}
+.feature i { font-size: 10px; color: var(--text-3); width: 12px; text-align: center; }
+
+.card-cta {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--text-1);
+  transition: gap .2s;
+}
+.portal-card:hover .card-cta { gap: 10px; }
+.card-cta i { font-size: 11px; transition: transform .2s; }
+.portal-card:hover .card-cta i { transform: translateX(3px); }
+
+/* ── DIVIDER ─────────────────────────────────────────────── */
+.or-divider {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.or-divider::before {
+  content: 'or';
+  font-size: 11px; color: var(--text-3);
+  background: var(--bg);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+/* ── FOOTER ─────────────────────────────────────────────── */
+footer {
+  text-align: center; padding: 20px;
+  font-size: 11.5px; color: var(--text-3);
+  border-top: 1px solid var(--border);
+}
+.dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--border-2); margin: 0 8px; vertical-align: middle; }
+
+/* ── ANIMATIONS ──────────────────────────────────────────── */
+@keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+.eyebrow { animation: fadeUp .4s ease both; }
+h1       { animation: fadeUp .4s .08s ease both; }
+.subtitle{ animation: fadeUp .4s .14s ease both; }
+.cards   { animation: fadeUp .4s .2s  ease both; }
+</style>
+</head>
+<body>
+<script>
+  (function(){
+    const t = localStorage.getItem("ss-theme") || "light";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">S</div>
+    <span class="logo-name">SmartStock AI</span>
+    <span class="logo-tag">v2.0</span>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+    <i class="fas fa-moon" id="themeIcon"></i>
+  </button>
+</header>
+
+<main>
+  <div class="eyebrow">AI-Driven Inventory Management</div>
+
+  <h1>Choose your <em>portal</em></h1>
+
+  <p class="subtitle">
+    One platform, two portals — manage your inventory or track
+    your sales from a single shared backend.
+  </p>
+
+  <div class="cards">
+
+    <!-- Stock Portal -->
+    <a class="portal-card" href="login.html">
+      <div class="card-icon"><i class="fas fa-boxes-stacked"></i></div>
+      <div class="card-label">Administrator</div>
+      <div class="card-title">SmartStock AI</div>
+      <div class="card-desc">
+        Full inventory management with AI demand forecasting,
+        analytics dashboard, and staff control.
+      </div>
+      <div class="card-features">
+        <div class="feature"><i class="fas fa-chart-line"></i> AI demand forecasting</div>
+        <div class="feature"><i class="fas fa-gauge-high"></i> Analytics dashboard</div>
+        <div class="feature"><i class="fas fa-users-gear"></i> Staff management</div>
+        <div class="feature"><i class="fas fa-file-arrow-down"></i> Excel import / export</div>
+      </div>
+      <div class="card-cta">
+        Open Inventory Portal <i class="fas fa-arrow-right"></i>
+      </div>
+    </a>
+
+    <!-- Sales Portal -->
+    <a class="portal-card" href="sales_portal.html">
+      <div class="card-icon"><i class="fas fa-cash-register"></i></div>
+      <div class="card-label">Sales Staff</div>
+      <div class="card-title">Sales Portal</div>
+      <div class="card-desc">
+        Log sales, browse products, track your personal
+        performance and compete on the leaderboard.
+      </div>
+      <div class="card-features">
+        <div class="feature"><i class="fas fa-cash-register"></i> Log sales instantly</div>
+        <div class="feature"><i class="fas fa-trophy"></i> Live leaderboard</div>
+        <div class="feature"><i class="fas fa-bolt"></i> Activity feed</div>
+        <div class="feature"><i class="fas fa-triangle-exclamation"></i> Low stock alerts</div>
+      </div>
+      <div class="card-cta">
+        Open Sales Portal <i class="fas fa-arrow-right"></i>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<footer>
+  SmartStock AI
+  <span class="dot"></span>
+  CGC College of Engineering, Landran
+  <span class="dot"></span>
+  B.Tech CSE — Major Project 2026
+</footer>
+
+<script>
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  document.getElementById("themeIcon").className = next === "dark" ? "fas fa-sun" : "fas fa-moon";
+  localStorage.setItem("ss-theme", next);
+}
+
+// Sync theme icon on load
+(function(){
+  const t = localStorage.getItem("ss-theme") || "light";
+  document.getElementById("themeIcon").className = t === "dark" ? "fas fa-sun" : "fas fa-moon";
+})();
+</script>
+</body>
+</html>
