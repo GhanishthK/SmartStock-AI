@@ -4,41 +4,71 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartStock AI</title>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── THEME TOKENS (HIGH-VISIBILITY) ────────────────────────── */
 :root {
-  --bg:       #f5f5f4;
-  --surface:  #ffffff;
-  --border:   #e5e5e5;
-  --border-2: #d4d4d4;
-  --text-1:   #111111;
-  --text-2:   #555555;
-  --text-3:   #aaaaaa;
-  --accent:   #111111;
-  --sh:       0 1px 2px rgba(0,0,0,.05);
-  --sh-md:    0 4px 16px rgba(0,0,0,.08);
-  --sh-lg:    0 8px 32px rgba(0,0,0,.10);
+  --bg:        #f3f4f6; /* Slightly deeper background to make white cards pop */
+  --surface:   #ffffff;
+  --surface-2: #f9fafb;
+  --border:    #d1d5db; /* Stronger, more visible dividing lines */
+  --border-2:  #9ca3af; /* Darker hover borders */
+  
+  /* Text Contrast significantly increased */
+  --text-1:    #030712; /* Almost pure black for primary text */
+  --text-2:    #1f2937; /* Highly readable dark gray for secondary */
+  --text-3:    #4b5563; /* Much darker tertiary text (was too light before) */
+  
+  --accent:    #111827;
+  --accent-fg: #ffffff;
+  
+  /* Richer badge backgrounds and borders */
+  --green:     #059669;
+  --green-bg:  #d1fae5; 
+  --green-bd:  #6ee7b7;
+  --red:       #dc2626;
+  --red-bg:    #fee2e2;
+  --red-bd:    #fca5a5;
+  --amber:     #d97706;
+  --amber-bg:  #fef3c7;
+  --amber-bd:  #fcd34d;
+  --blue:      #2563eb;
+  --blue-bg:   #dbeafe;
+  --blue-bd:   #93c5fd;
+  
+  /* Stronger shadows for better depth perception */
+  --sh:        0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --sh-md:     0 4px 6px -1px rgba(0, 0, 0, 0.15), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+  --sh-lg:     0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.08);
+  
+  /* Layout vars */
+  --sidebar-w: 240px;
+  --topbar-h:  60px;
+  --radius:    10px;
+  --r:         10px;
 }
 [data-theme="dark"] {
-  --bg:       #0f0f0f;
-  --surface:  #1a1a1a;
-  --border:   #272727;
-  --border-2: #383838;
-  --text-1:   #f0f0f0;
-  --text-2:   #888888;
-  --text-3:   #444444;
-  --accent:   #f0f0f0;
-  --sh:       0 1px 2px rgba(0,0,0,.3);
-  --sh-md:    0 4px 16px rgba(0,0,0,.4);
-  --sh-lg:    0 8px 32px rgba(0,0,0,.5);
+  --bg:        #020617;
+  --surface:   #0f172a;
+  --border:    #334155;
+  --border-2:  #475569;
+  --text-1:    #f8fafc;
+  --text-2:    #cbd5e1;
+  --text-3:    #94a3b8;
+  --accent:    #f8fafc;
+  --sh:        0 1px 2px rgba(0,0,0,.4);
+  --sh-md:     0 4px 6px -1px rgba(0,0,0,.5);
+  --sh-lg:     0 10px 15px -3px rgba(0,0,0,.6);
 }
 
 body {
   background: var(--bg); color: var(--text-1);
-  font-family: 'Geist', sans-serif;
+  font-family: 'Inter', sans-serif;
   min-height: 100vh;
   display: flex; flex-direction: column;
   transition: background .2s, color .2s;
@@ -47,33 +77,33 @@ body {
 /* ── TOPBAR ─────────────────────────────────────────────── */
 header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 40px; height: 56px;
+  padding: 0 40px; height: 60px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
 .logo { display: flex; align-items: center; gap: 10px; }
 .logo-mark {
-  width: 30px; height: 30px; border-radius: 7px;
+  width: 32px; height: 32px; border-radius: 8px;
   background: var(--text-1); color: var(--bg);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Instrument Serif', serif; font-size: 15px;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px;
   flex-shrink: 0; transition: background .2s;
 }
 .logo-name {
-  font-family: 'Instrument Serif', serif;
-  font-size: 17px; color: var(--text-1);
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+  font-size: 18px; color: var(--text-1);
 }
 .logo-tag {
-  font-size: 11px; color: var(--text-3);
+  font-size: 11px; font-weight: 600; color: var(--text-3);
   padding: 2px 8px; border: 1px solid var(--border);
-  border-radius: 999px; margin-left: 4px;
+  border-radius: 999px; margin-left: 6px;
 }
 
 .theme-btn {
-  width: 30px; height: 30px; border-radius: 6px;
+  width: 34px; height: 34px; border-radius: 8px;
   border: 1px solid var(--border); background: transparent;
-  color: var(--text-2); cursor: pointer; font-size: 12px;
+  color: var(--text-2); cursor: pointer; font-size: 13px;
   display: flex; align-items: center; justify-content: center;
   transition: all .15s;
 }
@@ -87,44 +117,45 @@ main {
 }
 
 .eyebrow {
-  font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  font-size: 12px; font-weight: 600; letter-spacing: .1em;
   text-transform: uppercase; color: var(--text-3);
-  margin-bottom: 20px;
-  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 24px;
+  display: flex; align-items: center; gap: 12px;
 }
 .eyebrow::before, .eyebrow::after {
   content: ''; display: block;
-  width: 28px; height: 1px; background: var(--border-2);
+  width: 32px; height: 2px; background: var(--border-2); border-radius: 2px;
 }
 
 h1 {
-  font-family: 'Instrument Serif', serif;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
   font-size: clamp(38px, 6vw, 58px);
   color: var(--text-1); text-align: center;
   line-height: 1.1; letter-spacing: -.02em;
   margin-bottom: 16px;
 }
-h1 em { font-style: italic; color: var(--text-2); }
+h1 em { font-style: normal; color: var(--blue); }
 
 .subtitle {
-  font-size: 15px; color: var(--text-2); text-align: center;
-  max-width: 380px; line-height: 1.6; margin-bottom: 56px;
+  font-size: 16px; color: var(--text-2); text-align: center;
+  max-width: 420px; line-height: 1.6; margin-bottom: 60px;
 }
 
 /* ── PORTAL CARDS ────────────────────────────────────────── */
 .cards {
   display: grid; grid-template-columns: 1fr 1fr;
-  gap: 20px; width: 100%; max-width: 680px;
+  gap: 24px; width: 100%; max-width: 720px;
 }
 
 .portal-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px; padding: 32px 28px;
+  border-radius: 16px; padding: 36px 32px;
   cursor: pointer; text-decoration: none; color: inherit;
   display: flex; flex-direction: column; gap: 0;
   transition: all .2s cubic-bezier(.16,1,.3,1);
   position: relative; overflow: hidden;
+  box-shadow: var(--sh);
 }
 .portal-card::after {
   content: '';
@@ -137,17 +168,17 @@ h1 em { font-style: italic; color: var(--text-2); }
 .portal-card:hover {
   border-color: var(--border-2);
   box-shadow: var(--sh-lg);
-  transform: translateY(-3px);
+  transform: translateY(-4px);
 }
 .portal-card:hover::after { opacity: .02; }
 [data-theme="dark"] .portal-card:hover::after { opacity: .04; }
 
 .card-icon {
-  width: 44px; height: 44px; border-radius: 10px;
+  width: 48px; height: 48px; border-radius: 12px;
   background: var(--bg); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; color: var(--text-1);
-  margin-bottom: 20px; transition: background .2s, border-color .2s;
+  font-size: 20px; color: var(--text-1);
+  margin-bottom: 24px; transition: background .2s, border-color .2s;
 }
 .portal-card:hover .card-icon {
   background: var(--text-1); color: var(--bg);
@@ -155,39 +186,39 @@ h1 em { font-style: italic; color: var(--text-2); }
 }
 
 .card-label {
-  font-size: 10.5px; font-weight: 500; letter-spacing: .08em;
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
   text-transform: uppercase; color: var(--text-3); margin-bottom: 8px;
 }
 .card-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 22px; color: var(--text-1);
-  line-height: 1.2; margin-bottom: 10px;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+  font-size: 24px; color: var(--text-1);
+  line-height: 1.2; margin-bottom: 12px;
 }
 .card-desc {
-  font-size: 13px; color: var(--text-2);
+  font-size: 14px; color: var(--text-2);
   line-height: 1.6; flex: 1;
 }
 
 .card-features {
-  display: flex; flex-direction: column; gap: 6px;
-  margin-top: 20px; padding-top: 18px;
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 24px; padding-top: 20px;
   border-top: 1px solid var(--border);
 }
 .feature {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--text-2);
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text-2); font-weight: 500;
 }
-.feature i { font-size: 10px; color: var(--text-3); width: 12px; text-align: center; }
+.feature i { font-size: 11px; color: var(--text-3); width: 14px; text-align: center; }
 
 .card-cta {
-  display: flex; align-items: center; gap: 7px;
-  margin-top: 22px; padding-top: 18px;
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 26px; padding-top: 20px;
   border-top: 1px solid var(--border);
-  font-size: 13px; font-weight: 500; color: var(--text-1);
+  font-size: 14px; font-weight: 600; color: var(--text-1);
   transition: gap .2s;
 }
-.portal-card:hover .card-cta { gap: 10px; }
-.card-cta i { font-size: 11px; transition: transform .2s; }
+.portal-card:hover .card-cta { gap: 12px; }
+.card-cta i { font-size: 12px; transition: transform .2s; }
 .portal-card:hover .card-cta i { transform: translateX(3px); }
 
 /* ── DIVIDER ─────────────────────────────────────────────── */
@@ -197,9 +228,9 @@ h1 em { font-style: italic; color: var(--text-2); }
 }
 .or-divider::before {
   content: 'or';
-  font-size: 11px; color: var(--text-3);
+  font-size: 12px; font-weight: 600; color: var(--text-3);
   background: var(--bg);
-  padding: 6px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
   position: absolute;
@@ -210,11 +241,11 @@ h1 em { font-style: italic; color: var(--text-2); }
 
 /* ── FOOTER ─────────────────────────────────────────────── */
 footer {
-  text-align: center; padding: 20px;
-  font-size: 11.5px; color: var(--text-3);
+  text-align: center; padding: 24px;
+  font-size: 12px; color: var(--text-3);
   border-top: 1px solid var(--border);
 }
-.dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--border-2); margin: 0 8px; vertical-align: middle; }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--border-2); margin: 0 10px; vertical-align: middle; }
 
 /* ── ANIMATIONS ──────────────────────────────────────────── */
 @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
@@ -255,7 +286,6 @@ h1       { animation: fadeUp .4s .08s ease both; }
 
   <div class="cards">
 
-    <!-- Stock Portal -->
     <a class="portal-card" href="login.html">
       <div class="card-icon"><i class="fas fa-boxes-stacked"></i></div>
       <div class="card-label">Administrator</div>
@@ -275,7 +305,6 @@ h1       { animation: fadeUp .4s .08s ease both; }
       </div>
     </a>
 
-    <!-- Sales Portal -->
     <a class="portal-card" href="sales_portal.html">
       <div class="card-icon"><i class="fas fa-cash-register"></i></div>
       <div class="card-label">Sales Staff</div>
