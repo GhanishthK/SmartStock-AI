@@ -1,8 +1,22 @@
+# SmartStock AI — Python Dependencies
+# Compatible with Python 3.9 through 3.14+
+# No pinned versions — pip will resolve the latest compatible build automatically.
+
+# Web Framework
 fastapi
-uvicorn
+uvicorn[standard]
+
+# Database ORM
 sqlalchemy
+
+# Data & AI
 scikit-learn
 numpy
 pandas
 openpyxl
+
+# File upload support for FastAPI
 python-multipart
+
+# Pydantic v2 (used in main.py schemas)
+pydantic
